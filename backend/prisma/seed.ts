@@ -23,6 +23,20 @@ async function main() {
   });
   console.log('Admin created:', admin.email);
 
+  const managerPasswordHash = await bcrypt.hash('Manager2024!', 12);
+  await prisma.user.upsert({
+    where: { email: 'manager@portalon.com' },
+    update: {},
+    create: {
+      name: 'Sofía Navarro',
+      email: 'manager@portalon.com',
+      passwordHash: managerPasswordHash,
+      role: UserRole.PROMOTION_MANAGER,
+      isActive: true,
+    },
+  });
+  console.log('Manager created: manager@portalon.com');
+
   const agentPasswordHash = await bcrypt.hash('Agent2024!', 12);
   const agent = await prisma.user.upsert({
     where: { email: 'comercial@portalon.com' },
@@ -42,7 +56,12 @@ async function main() {
   // -------------------------------------------------------
   const promotion = await prisma.promotion.upsert({
     where: { slug: 'el-portalon-del-brillante' },
-    update: {},
+    update: {
+      priceMin: 250000,
+      priceMax: 300000,
+      totalUnits: 8,
+      unitsAvailable: 6,
+    },
     create: {
       slug: 'el-portalon-del-brillante',
       name: 'El Portalón del Brillante',
@@ -63,10 +82,10 @@ un activo seguro, rentable y con alto valor patrimonial.`,
       country: 'España',
       currency: 'EUR',
       publicStatus: 'PUBLISHED',
-      priceMin: 195000,
-      priceMax: 385000,
-      totalUnits: 12,
-      unitsAvailable: 8,
+      priceMin: 250000,
+      priceMax: 300000,
+      totalUnits: 8,
+      unitsAvailable: 6,
     },
   });
   console.log('Promotion created:', promotion.name);
@@ -75,21 +94,27 @@ un activo seguro, rentable y con alto valor patrimonial.`,
   // Units
   // -------------------------------------------------------
   const unitData = [
-    { unitCode: 'A-01', title: 'Apartamento A-01 - Planta Baja', bedrooms: 1, bathrooms: 1, interiorM2: 45, price: 195000, featured: true, sortOrder: 1, operationMode: OperationMode.SHORT_STAY, assetStatus: AssetStatus.AVAILABLE },
-    { unitCode: 'A-02', title: 'Apartamento A-02 - Primera', bedrooms: 2, bathrooms: 1, interiorM2: 62, price: 245000, sortOrder: 2, operationMode: OperationMode.SHORT_STAY, assetStatus: AssetStatus.AVAILABLE },
-    { unitCode: 'A-03', title: 'Apartamento A-03 - Primera', bedrooms: 2, bathrooms: 2, interiorM2: 75, exteriorM2: 12, price: 285000, jacuzzi: true, sortOrder: 3, operationMode: OperationMode.MID_TERM, assetStatus: AssetStatus.AVAILABLE },
-    { unitCode: 'B-01', title: 'Apartamento B-01 - Ático', bedrooms: 3, bathrooms: 2, interiorM2: 95, exteriorM2: 25, price: 385000, featured: true, jacuzzi: true, parkingIncluded: true, sortOrder: 4, operationMode: OperationMode.SALE, assetStatus: AssetStatus.AVAILABLE },
-    { unitCode: 'B-02', title: 'Apartamento B-02 - Segunda', bedrooms: 1, bathrooms: 1, interiorM2: 40, price: 185000, sortOrder: 5, operationMode: OperationMode.SHORT_STAY, assetStatus: AssetStatus.OCCUPIED },
-    { unitCode: 'B-03', title: 'Apartamento B-03 - Segunda', bedrooms: 2, bathrooms: 1, interiorM2: 58, price: 235000, sortOrder: 6, operationMode: OperationMode.LONG_TERM, assetStatus: AssetStatus.AVAILABLE },
-    { unitCode: 'C-01', title: 'Apartamento C-01 - Tercera', bedrooms: 2, bathrooms: 2, interiorM2: 70, price: 265000, status: 'RESERVED' as const, sortOrder: 7, operationMode: OperationMode.SALE, assetStatus: AssetStatus.RESERVED },
-    { unitCode: 'C-02', title: 'Apartamento C-02 - Tercera', bedrooms: 3, bathrooms: 2, interiorM2: 88, price: 345000, status: 'SOLD' as const, sortOrder: 8, operationMode: OperationMode.SALE, assetStatus: AssetStatus.OFF_MARKET },
+    // --- Villas (landing page showcase) ---
+    { unitCode: 'V-01', title: 'Villa 1 — Jardín privado', bedrooms: 2, bathrooms: 2, interiorM2: 110, exteriorM2: 80, price: 250000, featured: false, sortOrder: 1, operationMode: OperationMode.SALE, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'V-02', title: 'Villa 2 — Vistas al patio', bedrooms: 3, bathrooms: 2, interiorM2: 130, exteriorM2: 60, price: 265000, featured: false, sortOrder: 2, operationMode: OperationMode.SALE, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'V-03', title: 'Villa 3 — Piscina privada', bedrooms: 3, bathrooms: 3, interiorM2: 145, exteriorM2: 120, price: 275000, featured: true, sortOrder: 3, operationMode: OperationMode.SALE, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'V-04', title: 'Villa 4 — Suite principal', bedrooms: 4, bathrooms: 3, interiorM2: 180, exteriorM2: 150, price: 300000, featured: true, jacuzzi: true, parkingIncluded: true, sortOrder: 4, operationMode: OperationMode.SALE, assetStatus: AssetStatus.AVAILABLE },
+    // --- Apartamentos (used by existing demo leads) ---
+    { unitCode: 'A-01', title: 'Apartamento A-01 - Planta Baja', bedrooms: 1, bathrooms: 1, interiorM2: 45, price: 195000, featured: false, sortOrder: 5, operationMode: OperationMode.SHORT_STAY, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'A-02', title: 'Apartamento A-02 - Primera', bedrooms: 2, bathrooms: 1, interiorM2: 62, price: 245000, sortOrder: 6, operationMode: OperationMode.SHORT_STAY, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'A-03', title: 'Apartamento A-03 - Primera', bedrooms: 2, bathrooms: 2, interiorM2: 75, exteriorM2: 12, price: 285000, jacuzzi: true, sortOrder: 7, operationMode: OperationMode.MID_TERM, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'B-01', title: 'Apartamento B-01 - Ático', bedrooms: 3, bathrooms: 2, interiorM2: 95, exteriorM2: 25, price: 385000, featured: false, jacuzzi: true, parkingIncluded: true, sortOrder: 8, operationMode: OperationMode.SALE, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'B-02', title: 'Apartamento B-02 - Segunda', bedrooms: 1, bathrooms: 1, interiorM2: 40, price: 185000, sortOrder: 9, operationMode: OperationMode.SHORT_STAY, assetStatus: AssetStatus.OCCUPIED },
+    { unitCode: 'B-03', title: 'Apartamento B-03 - Segunda', bedrooms: 2, bathrooms: 1, interiorM2: 58, price: 235000, sortOrder: 10, operationMode: OperationMode.LONG_TERM, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'C-01', title: 'Apartamento C-01 - Tercera', bedrooms: 2, bathrooms: 2, interiorM2: 70, price: 265000, status: 'RESERVED' as const, sortOrder: 11, operationMode: OperationMode.SALE, assetStatus: AssetStatus.RESERVED },
+    { unitCode: 'C-02', title: 'Apartamento C-02 - Tercera', bedrooms: 3, bathrooms: 2, interiorM2: 88, price: 345000, status: 'SOLD' as const, sortOrder: 12, operationMode: OperationMode.SALE, assetStatus: AssetStatus.OFF_MARKET },
   ];
 
   const units: Record<string, any> = {};
   for (const unit of unitData) {
     units[unit.unitCode] = await prisma.unit.upsert({
       where: { promotionId_unitCode: { promotionId: promotion.id, unitCode: unit.unitCode } },
-      update: { operationMode: unit.operationMode, assetStatus: unit.assetStatus },
+      update: { title: unit.title, price: unit.price, operationMode: unit.operationMode, assetStatus: unit.assetStatus },
       create: { ...unit, promotionId: promotion.id },
     });
   }
@@ -350,6 +375,64 @@ un activo seguro, rentable y con alto valor patrimonial.`,
   ]});
 
   console.log('Leads created: WON, RESERVED, VISITED, VISIT_SCHEDULED, CONTACTED, NEW(x2), LOST');
+
+  // -------------------------------------------------------
+  // Demo sales leads — buyer personas for sales meeting
+  // -------------------------------------------------------
+  const existingDemoLeads = await prisma.lead.count({
+    where: { promotionId: promotion.id, email: 'alejandro.ruiz@gmail.com' },
+  });
+
+  if (existingDemoLeads === 0) {
+    // 1. Madrid buyer — Spanish national, landing form
+    const leadMadrid = await mkLead({
+      firstName: 'Alejandro', lastName: 'Ruiz', email: 'alejandro.ruiz@gmail.com',
+      phone: '+34 691 234 567', country: 'ES', status: LeadStatus.NEW,
+      sourceType: LeadSourceType.LANDING_PUBLIC, unitCode: 'V-01',
+      score: 52,
+      aiSummary: 'Comprador madrileño. Busca segunda residencia en Córdoba o inversión para arrendamiento. Perfil solvente — propietario de vivienda habitual en Madrid. Alto interés, primer contacto pendiente.',
+      budgetRange: '240000-270000', interestLevel: 'HIGH',
+      buyerType: 'END_USER', language: 'es-ES',
+    });
+    await prisma.leadActivity.create({
+      data: { leadId: leadMadrid.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { status: LeadStatus.NEW, source: 'landing_public' } },
+    });
+
+    // 2. London buyer — foreign buyer, partner referral
+    const leadLondon = await mkLead({
+      firstName: 'Catherine', lastName: 'Williams', email: 'c.williams@outlook.co.uk',
+      phone: '+44 7850 234 567', country: 'GB', status: LeadStatus.QUALIFIED,
+      sourceType: LeadSourceType.PARTNER_REFERRAL, partnerId: partner1.id, unitCode: 'V-03',
+      score: 71,
+      aiSummary: 'Compradora británica de alto perfil. Busca segunda residencia en España, zona Patrimonio. Referida por Carlos García (broker). Confirmó presupuesto hasta 280k€. Segunda llamada programada.',
+      assignedToUserId: agent.id, budgetRange: '260000-290000', interestLevel: 'HIGH',
+      buyerType: 'END_USER', language: 'en-GB',
+      aiRiskFlags: { flags: [], overallRisk: 'low', requiresManualReview: false },
+    });
+    await prisma.leadActivity.createMany({ data: [
+      { leadId: leadLondon.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'QUALIFIED', note: 'Llamada inicial positiva. Confirma presupuesto y perfil.' } },
+      { leadId: leadLondon.id, userId: agent.id, activityType: LeadActivityType.CALL_LOGGED, payload: { note: 'Segunda llamada 20 min. Muy interesada en Villa 3 — piscina privada. Solicita visita.' } },
+    ]});
+
+    // 3. Swiss investor — portfolio buyer, partner referral
+    const leadInvestorDemo = await mkLead({
+      firstName: 'Stefan', lastName: 'Meier', email: 's.meier@privatwealth.ch',
+      phone: '+41 79 321 4567', country: 'CH', status: LeadStatus.VISIT_SCHEDULED,
+      sourceType: LeadSourceType.PARTNER_REFERRAL, partnerId: partner2.id, unitCode: 'V-04',
+      score: 88,
+      aiSummary: 'Inversor suizo, family office de Zúrich. Busca activo patrimonial en España — horizonte largo plazo. Capacidad para adquirir 1-2 unidades. Visita confirmada. Alta prioridad.',
+      assignedToUserId: agent.id, budgetRange: '280000-320000', interestLevel: 'HIGH',
+      buyerType: 'INVESTOR', language: 'de-CH',
+      aiRiskFlags: { flags: [], overallRisk: 'low', requiresManualReview: false },
+    });
+    await prisma.leadActivity.createMany({ data: [
+      { leadId: leadInvestorDemo.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'CONTACTED', note: 'Contactado por Ana Torres (partner). Interés confirmado.' } },
+      { leadId: leadInvestorDemo.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'CONTACTED', newStatus: 'QUALIFIED', note: 'Perfil verificado. Capacidad financiera confirmada.' } },
+      { leadId: leadInvestorDemo.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'QUALIFIED', newStatus: 'VISIT_SCHEDULED', note: 'Visita programada para esta semana.' } },
+    ]});
+
+    console.log('Demo buyer leads created: Madrid (ES), London (GB), Zurich (CH)');
+  }
 
   // -------------------------------------------------------
   // Premium Asset Operations — Owners
@@ -650,18 +733,26 @@ un activo seguro, rentable y con alto valor patrimonial.`,
 function printSummary() {
   console.log('\n=== SEED COMPLETE ===');
   console.log('Admin:    admin@portalon.com        / Portalon2024!');
+  console.log('Manager:  manager@portalon.com      / Manager2024!');
   console.log('Agente:   comercial@portalon.com    / Agent2024!');
   console.log('Partner1: partner@demo.com          / Partner2024!  | CARL9X2F');
   console.log('Partner2: ana.torres@demo.com       / Partner2024!  | ANAT8K3M');
   console.log('Partner3: pendiente@demo.com        / Partner2024!  | ROBE2W9P (PENDING)');
+  console.log('\nVilla units (landing page):');
+  console.log('  V-01 — Villa 1 · Jardín privado    250.000€');
+  console.log('  V-02 — Villa 2 · Vistas al patio   265.000€');
+  console.log('  V-03 — Villa 3 · Piscina privada   275.000€  ⭐ featured');
+  console.log('  V-04 — Villa 4 · Suite principal   300.000€  ⭐ featured');
   console.log('\nDemo pipeline:');
-  console.log('  WON      — michael.davidson (UK, C-02 345k€, comisiones 5.175€+10.350€)');
-  console.log('  RESERVED — sophie.laurent (FR, C-01 265k€, comisión 3.975€ pdte)');
-  console.log('  VISITED  — k.weber (DE, B-01 ático 385k€)');
-  console.log('  SCHED.   — i.moreau (FR, A-03)');
-  console.log('  CONTACT. — d.chen (HK, landing)');
-  console.log('  NEW      — emma.j (UK), pedro.alves (PT)');
-  console.log('  LOST     — t.muller (DE)');
+  console.log('  WON        — michael.davidson (UK, comisiones 5.175€+10.350€)');
+  console.log('  RESERVED   — sophie.laurent (FR, comisión 3.975€ pdte)');
+  console.log('  VISIT_SCHED— stefan.meier (CH/investor, V-04 300k€) ← DEMO');
+  console.log('  QUALIFIED  — catherine.williams (GB/London buyer, V-03 275k€) ← DEMO');
+  console.log('  VISITED    — k.weber (DE)');
+  console.log('  CONTACTED  — d.chen (HK)');
+  console.log('  NEW        — alejandro.ruiz (Madrid/ES, V-01 250k€) ← DEMO');
+  console.log('  NEW        — emma.j (UK), pedro.alves (PT)');
+  console.log('  LOST       — t.muller (DE)');
 }
 
 main()

@@ -61,14 +61,14 @@ Portalon-private-network/
 
 ## Demo Credentials (seed data)
 
-| Role | Email | Password |
-|------|-------|---------|
-| Super Admin | admin@portalon.com | Portalon2024! |
-| Promotion Manager | manager@portalon.com | Manager2024! |
-| Sales Agent | comercial@portalon.com | Agent2024! |
-| Partner (APPROVED) | partner@demo.com | Partner2024! |
-| Partner 2 (APPROVED) | lucia@premiumrealty.com | Partner2024! |
-| Partner 3 (PENDING) | pedro@asesorfinanciero.com | Partner2024! |
+| Role | Email | Password | Notes |
+|------|-------|---------|-------|
+| Super Admin | admin@portalon.com | Portalon2024! | Full access |
+| Promotion Manager | manager@portalon.com | Manager2024! | Sofía Navarro |
+| Sales Agent | comercial@portalon.com | Agent2024! | Laura Martínez |
+| Partner (APPROVED) | partner@demo.com | Partner2024! | Carlos García · CARL9X2F |
+| Partner 2 (APPROVED) | ana.torres@demo.com | Partner2024! | Ana Torres · ANAT8K3M |
+| Partner 3 (PENDING) | pendiente@demo.com | Partner2024! | Roberto Sanz · ROBE2W9P |
 
 **WARNING**: Change ALL credentials before any real deployment.
 
