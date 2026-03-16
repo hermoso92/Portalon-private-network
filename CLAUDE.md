@@ -118,6 +118,42 @@ docker compose exec backend npx prisma db seed
 
 ---
 
+## Premium Asset Operations Extension
+
+Added in migration `20260316000000_premium_assets_extension`.
+
+### New Enums
+- `OperationMode`: SALE | SHORT_STAY | MID_TERM | LONG_TERM
+- `AssetStatus`: AVAILABLE | RESERVED | OCCUPIED | MAINTENANCE | OFF_MARKET
+- `InquiryType`: PURCHASE | SHORT_STAY_BOOKING | MID_TERM_RENTAL | LONG_TERM_RENTAL | INFORMATION
+- `OwnerType`, `OperatorAssignmentStatus`, `AvailabilityBlockReason`, `PriceUnit`
+
+### New Models
+- `Owner` - Asset owners (individual or company), linked to Units via `ownerId`
+- `OperatorAssignment` - Management company / operator assigned to a unit, with commissionRate
+- `AvailabilityBlock` - Date-range blocks (maintenance, bookings, etc.) per unit
+- `PricingProfile` - Pricing configuration per operation mode per unit
+
+### Extended Models
+- `Unit` gains: `operationMode`, `assetStatus`, `ownerId` (FK → Owner)
+
+### New Module: `premium-assets`
+Base path: `/api/v1/premium-assets`
+
+Public endpoints (no auth):
+- `GET /catalog` - Paginated asset catalog, filterable by operationMode/assetStatus
+- `GET /catalog/:id` - Single asset detail with active pricing + upcoming availability blocks
+- `POST /inquiries` - Submit inquiry → creates a Lead in the CRM automatically
+
+Admin endpoints (SUPER_ADMIN or PROMOTION_MANAGER):
+- `PATCH /units/:id/operation` - Set operationMode / assetStatus
+- `POST /owners`, `GET /owners`, `PUT /owners/:id` - Owner CRUD
+- `POST /units/:id/operator` - Assign management operator
+- `GET|POST /units/:id/availability`, `DELETE /availability/:id` - Availability block management
+- `GET|POST /units/:id/pricing`, `PATCH /pricing/:id` - Pricing profile management
+
+---
+
 ## Security Notes
 
 - Helmet is applied globally (`main.ts`)
