@@ -46,28 +46,36 @@ export class PremiumAssetsController {
 
   @Public()
   @Get('catalog')
-  @ApiOperation({ summary: 'Public asset catalog with optional filtering' })
+  @ApiOperation({ summary: 'Public asset catalog with optional filtering (excludes OFF_MARKET by default)' })
   getCatalog(@Query() filter: CatalogFilterDto) {
     return this.service.getCatalog(filter);
   }
 
   @Public()
   @Get('catalog/:id')
-  @ApiOperation({ summary: 'Public single asset detail' })
+  @ApiOperation({ summary: 'Public single asset detail with active pricing and upcoming availability' })
   getCatalogItem(@Param('id') id: string) {
     return this.service.getCatalogItem(id);
   }
 
   @Public()
   @Post('inquiries')
-  @ApiOperation({ summary: 'Submit a public inquiry for an asset' })
+  @ApiOperation({ summary: 'Submit a public inquiry for an asset — creates a Lead in the CRM' })
   submitInquiry(@Body() dto: SubmitInquiryDto) {
     return this.service.submitInquiry(dto);
   }
 
   // -----------------------------------------------------------------------
-  // ADMIN: UNIT OPERATION
+  // ADMIN: UNIT DETAIL + OPERATION
   // -----------------------------------------------------------------------
+
+  @Get('units/:id/summary')
+  @ApiBearerAuth()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PROMOTION_MANAGER, UserRole.SALES_AGENT)
+  @ApiOperation({ summary: 'Full unit summary: owner, active operator, all pricing, upcoming availability' })
+  getUnitSummary(@Param('id') id: string) {
+    return this.service.getUnitSummary(id);
+  }
 
   @Patch('units/:id/operation')
   @ApiBearerAuth()
@@ -75,10 +83,7 @@ export class PremiumAssetsController {
   @ApiOperation({ summary: 'Set operation mode and/or asset status on a unit' })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse({ description: 'Unit updated' })
-  setUnitOperation(
-    @Param('id') id: string,
-    @Body() dto: SetUnitOperationDto,
-  ) {
+  setUnitOperation(@Param('id') id: string, @Body() dto: SetUnitOperationDto) {
     return this.service.setUnitOperation(id, dto);
   }
 
@@ -97,7 +102,7 @@ export class PremiumAssetsController {
   @Get('owners')
   @ApiBearerAuth()
   @Roles(UserRole.SUPER_ADMIN, UserRole.PROMOTION_MANAGER, UserRole.SALES_AGENT)
-  @ApiOperation({ summary: 'List all asset owners' })
+  @ApiOperation({ summary: 'List all asset owners with their associated units' })
   listOwners() {
     return this.service.listOwners();
   }
@@ -114,10 +119,18 @@ export class PremiumAssetsController {
   // ADMIN: OPERATOR ASSIGNMENTS
   // -----------------------------------------------------------------------
 
+  @Get('units/:id/operators')
+  @ApiBearerAuth()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PROMOTION_MANAGER, UserRole.SALES_AGENT)
+  @ApiOperation({ summary: 'List all operator assignments for a unit' })
+  getUnitOperators(@Param('id') id: string) {
+    return this.service.getUnitOperators(id);
+  }
+
   @Post('units/:id/operator')
   @ApiBearerAuth()
   @Roles(UserRole.SUPER_ADMIN, UserRole.PROMOTION_MANAGER)
-  @ApiOperation({ summary: 'Assign an operator to a unit' })
+  @ApiOperation({ summary: 'Assign a management operator to a unit' })
   assignOperator(@Param('id') id: string, @Body() dto: AssignOperatorDto) {
     return this.service.assignOperator(id, dto);
   }
@@ -129,7 +142,7 @@ export class PremiumAssetsController {
   @Get('units/:id/availability')
   @ApiBearerAuth()
   @Roles(UserRole.SUPER_ADMIN, UserRole.PROMOTION_MANAGER, UserRole.SALES_AGENT)
-  @ApiOperation({ summary: 'Get availability blocks for a unit' })
+  @ApiOperation({ summary: 'Get all availability blocks for a unit' })
   getAvailabilityBlocks(@Param('id') id: string) {
     return this.service.getAvailabilityBlocks(id);
   }
@@ -162,7 +175,7 @@ export class PremiumAssetsController {
   @Get('units/:id/pricing')
   @ApiBearerAuth()
   @Roles(UserRole.SUPER_ADMIN, UserRole.PROMOTION_MANAGER, UserRole.SALES_AGENT)
-  @ApiOperation({ summary: 'Get pricing profiles for a unit' })
+  @ApiOperation({ summary: 'Get all pricing profiles for a unit' })
   getPricingProfiles(@Param('id') id: string) {
     return this.service.getPricingProfiles(id);
   }

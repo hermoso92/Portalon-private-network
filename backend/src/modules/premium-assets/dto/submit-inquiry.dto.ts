@@ -1,9 +1,9 @@
 import {
   IsString,
   IsEmail,
+  IsNotEmpty,
   IsOptional,
   IsEnum,
-  IsPhoneNumber,
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -12,6 +12,7 @@ import { InquiryType } from '@prisma/client';
 export class SubmitInquiryDto {
   @ApiProperty({ description: 'Unit ID the inquiry is about' })
   @IsString()
+  @IsNotEmpty()
   unitId: string;
 
   @ApiProperty({ enum: InquiryType })
@@ -20,6 +21,7 @@ export class SubmitInquiryDto {
 
   @ApiProperty()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(100)
   firstName: string;
 

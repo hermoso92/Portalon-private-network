@@ -1,6 +1,7 @@
 import {
   IsString,
   IsEmail,
+  IsNotEmpty,
   IsOptional,
   IsEnum,
   MaxLength,
@@ -11,6 +12,7 @@ import { OwnerType } from '@prisma/client';
 export class CreateOwnerDto {
   @ApiProperty({ description: 'Full name of the owner' })
   @IsString()
+  @IsNotEmpty()
   @MaxLength(200)
   name: string;
 

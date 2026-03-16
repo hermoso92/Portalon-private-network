@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsEnum, IsInt, IsString, Min, Max } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { OperationMode, AssetStatus } from '@prisma/client';
@@ -9,10 +9,18 @@ export class CatalogFilterDto {
   @IsEnum(OperationMode)
   operationMode?: OperationMode;
 
-  @ApiPropertyOptional({ enum: AssetStatus })
+  @ApiPropertyOptional({
+    enum: AssetStatus,
+    description: 'Filter by asset status. If omitted, OFF_MARKET assets are excluded.',
+  })
   @IsOptional()
   @IsEnum(AssetStatus)
   assetStatus?: AssetStatus;
+
+  @ApiPropertyOptional({ description: 'Filter by promotion ID' })
+  @IsOptional()
+  @IsString()
+  promotionId?: string;
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()

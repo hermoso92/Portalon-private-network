@@ -2,11 +2,16 @@
 
 ## Project Overview
 
-**Portalon Private Network** is a B2B SaaS platform for private commercial distribution of premium real estate developments. It enables real estate developers to manage a network of external partners (brokers, advisors, agencies) who refer high-net-worth investors to property promotions.
+**Portalon Private Network** is a private infrastructure platform for commercial distribution and basic operation of premium real estate assets. It enables real estate developers to manage a curated network of external partners (brokers, advisors, agencies) who refer high-net-worth investors and tenants to premium property promotions.
 
 **Stack**: NestJS (backend) + Next.js 14 (frontend) + PostgreSQL + Redis + Docker + nginx
 
-**Business model**: Partners earn commissions (1.5% on reservation + 3% on sale) for leads that convert. The platform manages the full pipeline from lead capture to commission payout.
+**Business model**:
+- Partners earn commissions (1.5% on reservation + 3% on sale) for leads that convert to sales
+- Assets can operate in multiple modes: SALE, SHORT_STAY, MID_TERM, LONG_TERM
+- Partners can distribute assets across all operation modes
+
+**Scope**: This is an MVP focused on distribution and basic asset operations. It is NOT a full PMS (no channel manager, no OTA sync, no payment processing).
 
 ---
 
@@ -126,7 +131,8 @@ Added in migration `20260316000000_premium_assets_extension`.
 - `OperationMode`: SALE | SHORT_STAY | MID_TERM | LONG_TERM
 - `AssetStatus`: AVAILABLE | RESERVED | OCCUPIED | MAINTENANCE | OFF_MARKET
 - `InquiryType`: PURCHASE | SHORT_STAY_BOOKING | MID_TERM_RENTAL | LONG_TERM_RENTAL | INFORMATION
-- `OwnerType`, `OperatorAssignmentStatus`, `AvailabilityBlockReason`, `PriceUnit`
+- `OwnerType`: INDIVIDUAL | COMPANY (no FAMILY_OFFICE - use COMPANY for family offices)
+- `OperatorAssignmentStatus`, `AvailabilityBlockReason`, `PriceUnit`
 
 ### New Models
 - `Owner` - Asset owners (individual or company), linked to Units via `ownerId`
@@ -137,20 +143,36 @@ Added in migration `20260316000000_premium_assets_extension`.
 ### Extended Models
 - `Unit` gains: `operationMode`, `assetStatus`, `ownerId` (FK → Owner)
 
-### New Module: `premium-assets`
+### Module: `premium-assets`
 Base path: `/api/v1/premium-assets`
 
-Public endpoints (no auth):
-- `GET /catalog` - Paginated asset catalog, filterable by operationMode/assetStatus
-- `GET /catalog/:id` - Single asset detail with active pricing + upcoming availability blocks
-- `POST /inquiries` - Submit inquiry → creates a Lead in the CRM automatically
+Public endpoints (no auth — `@Public()`):
+- `GET /catalog` - Paginated catalog, filterable by operationMode/assetStatus/promotionId. **OFF_MARKET excluded by default.**
+- `GET /catalog/:id` - Single asset with active pricing + upcoming availability blocks
+- `POST /inquiries` - Submit inquiry → creates a Lead in CRM (same flow as `/leads/public`)
 
 Admin endpoints (SUPER_ADMIN or PROMOTION_MANAGER):
-- `PATCH /units/:id/operation` - Set operationMode / assetStatus
+- `GET /units/:id/summary` - Full unit detail: owner, active operator, all pricing, upcoming blocks
+- `PATCH /units/:id/operation` - Set operationMode / assetStatus (at least one required)
 - `POST /owners`, `GET /owners`, `PUT /owners/:id` - Owner CRUD
+- `GET /units/:id/operators` - List operator assignments for a unit
 - `POST /units/:id/operator` - Assign management operator
 - `GET|POST /units/:id/availability`, `DELETE /availability/:id` - Availability block management
 - `GET|POST /units/:id/pricing`, `PATCH /pricing/:id` - Pricing profile management
+
+### Integration with Core
+- Inquiries map directly to `Lead` records — visible in CRM immediately
+- `referralCode` in inquiry resolves to a Partner for attribution and commissions
+- `InquiryType` stored in `lead.notes` (prefix) and `lead.attributionData.inquiryType` (JSON)
+- Same pipeline (NEW→QUALIFIED→...→WON) handles both sale and rental leads
+- Partners distribute assets across all operation modes (SALE, SHORT_STAY, MID_TERM, LONG_TERM)
+
+### Architecture Invariants — DO NOT BREAK
+- Public catalog NEVER shows OFF_MARKET assets unless explicitly filtered
+- `setUnitOperation` requires at least one field (operationMode or assetStatus)
+- Inquiry-to-Lead mapping duplicates the logic of `leads.service.createPublic()` to avoid circular deps
+- `OperatorAssignment.commissionRate` is stored as decimal (0.18 = 18%), not percentage
+- All date comparisons in availability/operator logic use `new Date()` conversion, not string comparison
 
 ---
 

@@ -2,12 +2,11 @@
 
 ## Purpose
 
-Extends the Portalon Private Network platform beyond real estate sales into a full
-**Premium Asset Operations** hub. Supports multi-mode asset management:
-`SALE | SHORT_STAY | MID_TERM | LONG_TERM`.
+Extends Portalon Private Network into a **Premium Asset Operations** hub.
+Supports multi-mode asset management: `SALE | SHORT_STAY | MID_TERM | LONG_TERM`.
 
 This module does NOT replace any existing module. It adds new surface area on top of
-the existing `Unit`, `Promotion`, and `Lead` models.
+the existing `Unit`, `Promotion`, `Lead`, and `Partner` models.
 
 ---
 
@@ -19,8 +18,8 @@ premium-assets/
 ├── premium-assets.service.ts        # Business logic
 ├── premium-assets.controller.ts     # REST endpoints (public + admin)
 └── dto/
-    ├── catalog-filter.dto.ts        # Query params for public catalog
-    ├── set-unit-operation.dto.ts    # operationMode + assetStatus patch
+    ├── catalog-filter.dto.ts        # Query params: operationMode, assetStatus, promotionId, page, limit
+    ├── set-unit-operation.dto.ts    # operationMode + assetStatus patch (at least one required)
     ├── submit-inquiry.dto.ts        # Public inquiry form (maps to Lead)
     ├── create-owner.dto.ts          # Create Owner record
     ├── update-owner.dto.ts          # Partial update (PartialType)
@@ -34,22 +33,24 @@ premium-assets/
 
 ## Endpoints
 
-### Public (no auth - use `@Public()`)
+### Public (no auth — `@Public()`)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/premium-assets/catalog` | Paginated catalog, filter by operationMode / assetStatus |
-| GET | `/premium-assets/catalog/:id` | Single asset with pricing + upcoming blocks |
-| POST | `/premium-assets/inquiries` | Submit inquiry → creates a Lead |
+| GET | `/premium-assets/catalog` | Paginated catalog, filters: operationMode / assetStatus / promotionId. OFF_MARKET excluded by default. |
+| GET | `/premium-assets/catalog/:id` | Single asset with active pricing + upcoming availability blocks |
+| POST | `/premium-assets/inquiries` | Submit inquiry → creates a Lead in CRM |
 
-### Admin (require `JwtAuthGuard` + `RolesGuard`)
+### Admin (require `JwtAuthGuard + RolesGuard`)
 
 | Method | Path | Roles | Description |
 |--------|------|-------|-------------|
+| GET | `/premium-assets/units/:id/summary` | SUPER_ADMIN, PROMOTION_MANAGER, SALES_AGENT | Full unit: owner, active operator, pricing, upcoming blocks |
 | PATCH | `/premium-assets/units/:id/operation` | SUPER_ADMIN, PROMOTION_MANAGER | Set operationMode / assetStatus |
 | POST | `/premium-assets/owners` | SUPER_ADMIN, PROMOTION_MANAGER | Create owner |
 | GET | `/premium-assets/owners` | SUPER_ADMIN, PROMOTION_MANAGER, SALES_AGENT | List owners with units |
 | PUT | `/premium-assets/owners/:id` | SUPER_ADMIN, PROMOTION_MANAGER | Update owner |
+| GET | `/premium-assets/units/:id/operators` | SUPER_ADMIN, PROMOTION_MANAGER, SALES_AGENT | List operator assignments |
 | POST | `/premium-assets/units/:id/operator` | SUPER_ADMIN, PROMOTION_MANAGER | Assign operator |
 | GET | `/premium-assets/units/:id/availability` | SUPER_ADMIN, PROMOTION_MANAGER, SALES_AGENT | List availability blocks |
 | POST | `/premium-assets/units/:id/availability` | SUPER_ADMIN, PROMOTION_MANAGER | Create availability block |
@@ -62,35 +63,33 @@ premium-assets/
 
 ## Data Model (Prisma)
 
-New enums added to `schema.prisma`:
+New enums (migration `20260316000000_premium_assets_extension`):
 - `OperationMode`: SALE | SHORT_STAY | MID_TERM | LONG_TERM
 - `AssetStatus`: AVAILABLE | RESERVED | OCCUPIED | MAINTENANCE | OFF_MARKET
-- `OwnerType`: INDIVIDUAL | COMPANY
+- `OwnerType`: INDIVIDUAL | COMPANY (use COMPANY for family offices too)
 - `OperatorAssignmentStatus`: ACTIVE | INACTIVE
 - `AvailabilityBlockReason`: BLOCKED | MAINTENANCE | RESERVED | OCCUPIED
 - `PriceUnit`: TOTAL | PER_NIGHT | PER_MONTH | PER_YEAR
 - `InquiryType`: PURCHASE | SHORT_STAY_BOOKING | MID_TERM_RENTAL | LONG_TERM_RENTAL | INFORMATION
 
-New tables (migration: `20260316000000_premium_assets_extension`):
-- `owners` - Asset owners (individual or company)
-- `operator_assignments` - Management operator assignments per unit
-- `availability_blocks` - Date-range blocks (maintenance, reservation, etc.)
-- `pricing_profiles` - Pricing per operation mode per unit
+New tables:
+- `owners` — email is unique, type is INDIVIDUAL or COMPANY
+- `operator_assignments` — commissionRate stored as decimal (0.18 = 18%)
+- `availability_blocks` — date range + reason per unit
+- `pricing_profiles` — priceUnit must match operationMode semantically
 
-Extended table:
-- `units` - Added `operationMode`, `assetStatus`, `ownerId` (FK to owners)
+Extended:
+- `units` — added `operationMode` (default SALE), `assetStatus` (default AVAILABLE), `ownerId` (nullable FK)
 
 ---
 
-## Inquiry → Lead Mapping
+## Behavior Invariants
 
-`submitInquiry()` maps the public inquiry form to a `Lead` record:
-- `unitId` is resolved to find `promotionId` (required by Lead model)
-- `referralCode` is resolved to a `Partner` (same flow as `leads.service.createPublic`)
-- `inquiryType` is stored in `lead.notes` as a prefix and in `lead.attributionData`
-- An `Attribution` record is created if a partner is resolved
-
-This means all inquiries become first-class leads visible in the CRM immediately.
+1. **Public catalog excludes OFF_MARKET** unless `assetStatus=OFF_MARKET` is explicitly passed
+2. **`setUnitOperation` requires at least one field** — empty body returns 400
+3. **Date validation** uses `new Date()` conversion before comparison — no string comparison
+4. **Inquiry → Lead** mapping uses `unit.promotionId` to find the required `promotionId`
+5. **No circular dependency** — PremiumAssetsService writes to Lead/Attribution tables directly via PrismaService, never imports LeadsService
 
 ---
 
@@ -99,10 +98,9 @@ This means all inquiries become first-class leads visible in the CRM immediately
 ```
 PremiumAssetsModule
   imports:
-    - PrismaModule (global - no explicit import needed)
+    - PrismaModule (global — no explicit import needed)
   exports:
     - PremiumAssetsService
 ```
 
-No circular dependencies. Does not import LeadsModule or any other feature module.
-Operates directly on Prisma models for Lead/Attribution creation to avoid circular refs.
+No circular dependencies. PrismaModule is declared global in `app.module.ts`.

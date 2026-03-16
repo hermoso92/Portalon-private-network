@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, PartnerRoleType, PartnerStatus, LeadStatus, LeadSourceType, LeadActivityType, CommissionTriggerType, CommissionStatus } from '@prisma/client';
+import { PrismaClient, UserRole, PartnerRoleType, PartnerStatus, LeadStatus, LeadSourceType, LeadActivityType, CommissionTriggerType, CommissionStatus, OperationMode, AssetStatus, OwnerType, AvailabilityBlockReason, PriceUnit } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -75,21 +75,21 @@ un activo seguro, rentable y con alto valor patrimonial.`,
   // Units
   // -------------------------------------------------------
   const unitData = [
-    { unitCode: 'A-01', title: 'Apartamento A-01 - Planta Baja', bedrooms: 1, bathrooms: 1, interiorM2: 45, price: 195000, featured: true, sortOrder: 1 },
-    { unitCode: 'A-02', title: 'Apartamento A-02 - Primera', bedrooms: 2, bathrooms: 1, interiorM2: 62, price: 245000, sortOrder: 2 },
-    { unitCode: 'A-03', title: 'Apartamento A-03 - Primera', bedrooms: 2, bathrooms: 2, interiorM2: 75, exteriorM2: 12, price: 285000, jacuzzi: true, sortOrder: 3 },
-    { unitCode: 'B-01', title: 'Apartamento B-01 - Ático', bedrooms: 3, bathrooms: 2, interiorM2: 95, exteriorM2: 25, price: 385000, featured: true, jacuzzi: true, parkingIncluded: true, sortOrder: 4 },
-    { unitCode: 'B-02', title: 'Apartamento B-02 - Segunda', bedrooms: 1, bathrooms: 1, interiorM2: 40, price: 185000, sortOrder: 5 },
-    { unitCode: 'B-03', title: 'Apartamento B-03 - Segunda', bedrooms: 2, bathrooms: 1, interiorM2: 58, price: 235000, sortOrder: 6 },
-    { unitCode: 'C-01', title: 'Apartamento C-01 - Tercera', bedrooms: 2, bathrooms: 2, interiorM2: 70, price: 265000, status: 'RESERVED' as const, sortOrder: 7 },
-    { unitCode: 'C-02', title: 'Apartamento C-02 - Tercera', bedrooms: 3, bathrooms: 2, interiorM2: 88, price: 345000, status: 'SOLD' as const, sortOrder: 8 },
+    { unitCode: 'A-01', title: 'Apartamento A-01 - Planta Baja', bedrooms: 1, bathrooms: 1, interiorM2: 45, price: 195000, featured: true, sortOrder: 1, operationMode: OperationMode.SHORT_STAY, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'A-02', title: 'Apartamento A-02 - Primera', bedrooms: 2, bathrooms: 1, interiorM2: 62, price: 245000, sortOrder: 2, operationMode: OperationMode.SHORT_STAY, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'A-03', title: 'Apartamento A-03 - Primera', bedrooms: 2, bathrooms: 2, interiorM2: 75, exteriorM2: 12, price: 285000, jacuzzi: true, sortOrder: 3, operationMode: OperationMode.MID_TERM, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'B-01', title: 'Apartamento B-01 - Ático', bedrooms: 3, bathrooms: 2, interiorM2: 95, exteriorM2: 25, price: 385000, featured: true, jacuzzi: true, parkingIncluded: true, sortOrder: 4, operationMode: OperationMode.SALE, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'B-02', title: 'Apartamento B-02 - Segunda', bedrooms: 1, bathrooms: 1, interiorM2: 40, price: 185000, sortOrder: 5, operationMode: OperationMode.SHORT_STAY, assetStatus: AssetStatus.OCCUPIED },
+    { unitCode: 'B-03', title: 'Apartamento B-03 - Segunda', bedrooms: 2, bathrooms: 1, interiorM2: 58, price: 235000, sortOrder: 6, operationMode: OperationMode.LONG_TERM, assetStatus: AssetStatus.AVAILABLE },
+    { unitCode: 'C-01', title: 'Apartamento C-01 - Tercera', bedrooms: 2, bathrooms: 2, interiorM2: 70, price: 265000, status: 'RESERVED' as const, sortOrder: 7, operationMode: OperationMode.SALE, assetStatus: AssetStatus.RESERVED },
+    { unitCode: 'C-02', title: 'Apartamento C-02 - Tercera', bedrooms: 3, bathrooms: 2, interiorM2: 88, price: 345000, status: 'SOLD' as const, sortOrder: 8, operationMode: OperationMode.SALE, assetStatus: AssetStatus.OFF_MARKET },
   ];
 
   const units: Record<string, any> = {};
   for (const unit of unitData) {
     units[unit.unitCode] = await prisma.unit.upsert({
       where: { promotionId_unitCode: { promotionId: promotion.id, unitCode: unit.unitCode } },
-      update: {},
+      update: { operationMode: unit.operationMode, assetStatus: unit.assetStatus },
       create: { ...unit, promotionId: promotion.id },
     });
   }
@@ -350,6 +350,300 @@ un activo seguro, rentable y con alto valor patrimonial.`,
   ]});
 
   console.log('Leads created: WON, RESERVED, VISITED, VISIT_SCHEDULED, CONTACTED, NEW(x2), LOST');
+
+  // -------------------------------------------------------
+  // Premium Asset Operations — Owners
+  // -------------------------------------------------------
+  const owner1 = await prisma.owner.upsert({
+    where: { email: 'javier.morales@gmail.com' },
+    update: {},
+    create: {
+      name: 'Javier Morales Ruiz',
+      email: 'javier.morales@gmail.com',
+      phone: '+34 600 111 222',
+      type: OwnerType.INDIVIDUAL,
+      taxId: '12345678A',
+      notes: 'Propietario particular — tiene 3 unidades en el edificio (A-01, A-02, B-02)',
+    },
+  });
+
+  const owner2 = await prisma.owner.upsert({
+    where: { email: 'inversiones@brillantepatrimonial.es' },
+    update: {},
+    create: {
+      name: 'Brillante Patrimonial SL',
+      email: 'inversiones@brillantepatrimonial.es',
+      phone: '+34 957 123 456',
+      type: OwnerType.COMPANY,
+      taxId: 'B12345678',
+      notes: 'Sociedad patrimonial — propietaria del ático B-01 y unidades B-03, C-01',
+    },
+  });
+
+  const owner3 = await prisma.owner.upsert({
+    where: { email: 'office@horizonfamilyoffice.com' },
+    update: {},
+    create: {
+      name: 'Horizon Family Office SL',
+      email: 'office@horizonfamilyoffice.com',
+      phone: '+34 91 000 1234',
+      type: OwnerType.COMPANY,
+      taxId: 'B98765432',
+      notes: 'Family office — adquirió A-03 y C-02 como inversión patrimonial',
+    },
+  });
+
+  console.log('Owners created: 3');
+
+  // Assign owners to units
+  await prisma.unit.updateMany({
+    where: { promotionId: promotion.id, unitCode: { in: ['A-01', 'A-02', 'B-02'] } },
+    data: { ownerId: owner1.id },
+  });
+  await prisma.unit.updateMany({
+    where: { promotionId: promotion.id, unitCode: { in: ['B-01', 'B-03', 'C-01'] } },
+    data: { ownerId: owner2.id },
+  });
+  await prisma.unit.updateMany({
+    where: { promotionId: promotion.id, unitCode: { in: ['A-03', 'C-02'] } },
+    data: { ownerId: owner3.id },
+  });
+
+  // -------------------------------------------------------
+  // Premium Asset Operations — Operator Assignments
+  // -------------------------------------------------------
+  const existingOperators = await prisma.operatorAssignment.count({
+    where: { unitId: units['A-01'].id },
+  });
+
+  if (existingOperators === 0) {
+    // Gestor turístico para SHORT_STAY units
+    await prisma.operatorAssignment.createMany({
+      data: [
+        {
+          unitId: units['A-01'].id,
+          operatorName: 'Córdoba Experience SL',
+          operatorEmail: 'ops@cordoba-experience.com',
+          operatorPhone: '+34 957 200 300',
+          startDate: new Date('2026-01-01'),
+          commissionRate: 0.18,
+          notes: 'Gestor turístico — gestiona A-01 y A-02, plataformas OTA y check-in',
+          status: 'ACTIVE',
+        },
+        {
+          unitId: units['A-02'].id,
+          operatorName: 'Córdoba Experience SL',
+          operatorEmail: 'ops@cordoba-experience.com',
+          operatorPhone: '+34 957 200 300',
+          startDate: new Date('2026-01-01'),
+          commissionRate: 0.18,
+          notes: 'Mismo gestor que A-01',
+          status: 'ACTIVE',
+        },
+        {
+          unitId: units['B-02'].id,
+          operatorName: 'Córdoba Experience SL',
+          operatorEmail: 'ops@cordoba-experience.com',
+          operatorPhone: '+34 957 200 300',
+          startDate: new Date('2026-01-01'),
+          commissionRate: 0.18,
+          notes: 'Actualmente ocupado — cliente en estancia',
+          status: 'ACTIVE',
+        },
+        {
+          unitId: units['B-01'].id,
+          operatorName: 'Portalon Gestión Interna',
+          operatorEmail: 'gestion@portalon.com',
+          operatorPhone: '+34 957 100 200',
+          startDate: new Date('2025-06-01'),
+          commissionRate: 0.10,
+          notes: 'Operador interno — gestión directa del ático premium en venta',
+          status: 'ACTIVE',
+        },
+      ],
+    });
+    console.log('Operator assignments created: 4');
+  }
+
+  // -------------------------------------------------------
+  // Premium Asset Operations — Pricing Profiles
+  // -------------------------------------------------------
+  const existingPricing = await prisma.pricingProfile.count({
+    where: { unitId: units['A-01'].id },
+  });
+
+  if (existingPricing === 0) {
+    await prisma.pricingProfile.createMany({
+      data: [
+        // SHORT_STAY: A-01 (studio)
+        { unitId: units['A-01'].id, operationMode: OperationMode.SHORT_STAY, basePrice: 145, currency: 'EUR', priceUnit: PriceUnit.PER_NIGHT, minStay: 2, maxStay: 30, isActive: true, notes: 'Tarifa base temporada media. Mínimo 2 noches.' },
+        // SHORT_STAY: A-02 (2BD)
+        { unitId: units['A-02'].id, operationMode: OperationMode.SHORT_STAY, basePrice: 185, currency: 'EUR', priceUnit: PriceUnit.PER_NIGHT, minStay: 3, maxStay: 30, isActive: true, notes: 'Apartamento 2 dormitorios. Mínimo 3 noches.' },
+        // SHORT_STAY: B-02 (studio compact)
+        { unitId: units['B-02'].id, operationMode: OperationMode.SHORT_STAY, basePrice: 120, currency: 'EUR', priceUnit: PriceUnit.PER_NIGHT, minStay: 2, maxStay: 28, isActive: true, notes: 'Studio compacto. Alta rotación.' },
+        // MID_TERM: A-03 (2BD jacuzzi)
+        { unitId: units['A-03'].id, operationMode: OperationMode.MID_TERM, basePrice: 1850, currency: 'EUR', priceUnit: PriceUnit.PER_MONTH, minStay: 1, maxStay: 11, isActive: true, notes: 'Alquiler medio plazo. Incluye servicios básicos.' },
+        // LONG_TERM: B-03 (2BD)
+        { unitId: units['B-03'].id, operationMode: OperationMode.LONG_TERM, basePrice: 1200, currency: 'EUR', priceUnit: PriceUnit.PER_MONTH, minStay: 12, isActive: true, notes: 'Arrendamiento anual. Sin gastos de comunidad incluidos.' },
+        // SALE: B-01 (ático)
+        { unitId: units['B-01'].id, operationMode: OperationMode.SALE, basePrice: 385000, currency: 'EUR', priceUnit: PriceUnit.TOTAL, isActive: true, notes: 'Precio de venta ático. Negociable a partir de 370.000€.' },
+        // SALE: C-01 (reservado)
+        { unitId: units['C-01'].id, operationMode: OperationMode.SALE, basePrice: 265000, currency: 'EUR', priceUnit: PriceUnit.TOTAL, isActive: true, notes: 'Precio escritura acordado con Sophie Laurent.' },
+      ],
+    });
+    console.log('Pricing profiles created: 7');
+  }
+
+  // -------------------------------------------------------
+  // Premium Asset Operations — Availability Blocks
+  // -------------------------------------------------------
+  const existingBlocks = await prisma.availabilityBlock.count({
+    where: { unitId: units['B-02'].id },
+  });
+
+  if (existingBlocks === 0) {
+    await prisma.availabilityBlock.createMany({
+      data: [
+        // B-02 actualmente ocupado
+        {
+          unitId: units['B-02'].id,
+          startDate: new Date('2026-03-10'),
+          endDate: new Date('2026-03-24'),
+          reason: AvailabilityBlockReason.OCCUPIED,
+          notes: 'Estancia activa — familia alemana, checkout 24 marzo',
+        },
+        // A-01 mantenimiento próximo
+        {
+          unitId: units['A-01'].id,
+          startDate: new Date('2026-03-28'),
+          endDate: new Date('2026-04-02'),
+          reason: AvailabilityBlockReason.MAINTENANCE,
+          notes: 'Revisión HVAC + pintura anual',
+        },
+        // A-02 reserva confirmada
+        {
+          unitId: units['A-02'].id,
+          startDate: new Date('2026-04-10'),
+          endDate: new Date('2026-04-18'),
+          reason: AvailabilityBlockReason.RESERVED,
+          notes: 'Reserva Semana Santa — confirmada',
+        },
+        // C-01 bloqueado por proceso de escritura
+        {
+          unitId: units['C-01'].id,
+          startDate: new Date('2026-03-16'),
+          endDate: new Date('2026-04-30'),
+          reason: AvailabilityBlockReason.BLOCKED,
+          notes: 'Bloqueado durante proceso notarial — Sophie Laurent',
+        },
+      ],
+    });
+    console.log('Availability blocks created: 4');
+  }
+
+  // -------------------------------------------------------
+  // Premium Leads — flujos de alquiler e inversión
+  // -------------------------------------------------------
+  const existingPremiumLeads = await prisma.lead.count({
+    where: { promotionId: promotion.id, notes: { startsWith: '[Inquiry:' } },
+  });
+
+  if (existingPremiumLeads === 0) {
+    // Lead 1: Comprador internacional via inquiry
+    const leadBuyer = await prisma.lead.create({
+      data: {
+        promotionId: promotion.id,
+        unitId: units['B-01'].id,
+        partnerId: partner1.id,
+        sourceType: LeadSourceType.PARTNER_REFERRAL,
+        firstName: 'Valentina',
+        lastName: 'Ferretti',
+        email: 'v.ferretti@outlook.it',
+        phone: '+39 347 123 4567',
+        country: 'IT',
+        status: LeadStatus.QUALIFIED,
+        score: 78,
+        buyerType: 'INVESTOR' as any,
+        interestLevel: 'HIGH',
+        budgetRange: '350000-420000',
+        language: 'it-IT',
+        notes: '[Inquiry: PURCHASE] Interested in the penthouse for family use and occasional rental yield.',
+        aiSummary: 'Inversora italiana, 2ª residencia en España. Busca ático en el centro histórico. Perfil comprador cash, horizonte 5-10 años. Muy interesada en rentabilidad turística puntual.',
+        attributionData: {
+          inquiryType: 'PURCHASE',
+          referralCode: 'CARL9X2F',
+        },
+      },
+    });
+    await prisma.attribution.create({
+      data: { leadId: leadBuyer.id, partnerId: partner1.id, sourceChannel: 'landing_inquiry' },
+    });
+    await prisma.leadActivity.createMany({ data: [
+      { leadId: leadBuyer.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'QUALIFIED', source: 'inquiry_form' } },
+      { leadId: leadBuyer.id, userId: agent.id, activityType: LeadActivityType.CALL_LOGGED, payload: { note: 'Llamada inicial 20 min. Muy interesada en el ático. Confirma presupuesto hasta 400k€.' } },
+    ]});
+
+    // Lead 2: Cliente alquiler mid-term
+    const leadRenter = await prisma.lead.create({
+      data: {
+        promotionId: promotion.id,
+        unitId: units['A-03'].id,
+        sourceType: LeadSourceType.LANDING_PUBLIC,
+        firstName: 'Antoine',
+        lastName: 'Blanchard',
+        email: 'antoine.blanchard@protonmail.com',
+        phone: '+33 6 55 44 33 22',
+        country: 'FR',
+        status: LeadStatus.CONTACTED,
+        score: 62,
+        buyerType: 'END_USER' as any,
+        interestLevel: 'HIGH',
+        budgetRange: '1500-2000/mes',
+        language: 'fr-FR',
+        notes: '[Inquiry: MID_TERM_RENTAL] Cherche appartement 2 chambres pour 4-6 mois, sabbatique à Cordoue.',
+        aiSummary: 'Profesional francés en año sabático. Busca alquiler medio plazo 4-6 meses. Perfil solvente. Sin banderas de riesgo.',
+        attributionData: {
+          inquiryType: 'MID_TERM_RENTAL',
+        },
+      },
+    });
+    await prisma.leadActivity.createMany({ data: [
+      { leadId: leadRenter.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'CONTACTED', source: 'landing_form' } },
+      { leadId: leadRenter.id, userId: agent.id, activityType: LeadActivityType.EMAIL_SENT, payload: { note: 'Enviadas condiciones alquiler A-03: 1.850€/mes, mínimo 3 meses.' } },
+    ]});
+
+    // Lead 3: Inversor portfolio short-stay
+    const leadInvestor = await prisma.lead.create({
+      data: {
+        promotionId: promotion.id,
+        sourceType: LeadSourceType.PARTNER_REFERRAL,
+        partnerId: partner2.id,
+        firstName: 'Marcus',
+        lastName: 'Hoffmann',
+        email: 'm.hoffmann@wealth.de',
+        phone: '+49 173 9876543',
+        country: 'DE',
+        status: LeadStatus.NEW,
+        score: 85,
+        buyerType: 'INVESTOR' as any,
+        interestLevel: 'HIGH',
+        budgetRange: '500000-700000',
+        language: 'de-DE',
+        notes: '[Inquiry: PURCHASE] Interesado en adquirir 2-3 unidades short-stay como portfolio de inversión.',
+        aiSummary: 'Inversor alemán de alto perfil. Busca cartera de 2-3 apartamentos turísticos. Alta capacidad financiera. Horizonte de inversión 10 años. Alta prioridad.',
+        attributionData: {
+          inquiryType: 'PURCHASE',
+          referralCode: 'ANAT8K3M',
+        },
+      },
+    });
+    await prisma.attribution.create({
+      data: { leadId: leadInvestor.id, partnerId: partner2.id, sourceChannel: 'referral_link' },
+    });
+
+    console.log('Premium leads created: buyer (IT), renter (FR), investor portfolio (DE)');
+  }
+
   printSummary();
 }
 

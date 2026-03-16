@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { LeadSourceType } from '@prisma/client';
+import { AssetStatus, LeadSourceType } from '@prisma/client';
 import { CatalogFilterDto } from './dto/catalog-filter.dto';
 import { SetUnitOperationDto } from './dto/set-unit-operation.dto';
 import { SubmitInquiryDto } from './dto/submit-inquiry.dto';
@@ -24,15 +24,21 @@ export class PremiumAssetsService {
   // -----------------------------------------------------------------------
 
   async getCatalog(filter: CatalogFilterDto) {
-    const { operationMode, assetStatus, page = 1, limit = 20 } = filter;
+    const { operationMode, assetStatus, promotionId, page = 1, limit = 20 } = filter;
     const skip = (page - 1) * limit;
+
+    // Public catalog excludes OFF_MARKET by default unless explicitly requested
+    const resolvedAssetStatus = assetStatus ?? { not: AssetStatus.OFF_MARKET };
+
+    const where = {
+      ...(operationMode && { operationMode }),
+      assetStatus: resolvedAssetStatus,
+      ...(promotionId && { promotionId }),
+    };
 
     const [items, total] = await Promise.all([
       this.prisma.unit.findMany({
-        where: {
-          ...(operationMode && { operationMode }),
-          ...(assetStatus && { assetStatus }),
-        },
+        where,
         include: {
           promotion: {
             select: {
@@ -53,12 +59,7 @@ export class PremiumAssetsService {
         skip,
         take: limit,
       }),
-      this.prisma.unit.count({
-        where: {
-          ...(operationMode && { operationMode }),
-          ...(assetStatus && { assetStatus }),
-        },
-      }),
+      this.prisma.unit.count({ where }),
     ]);
 
     return {
@@ -114,11 +115,44 @@ export class PremiumAssetsService {
   }
 
   // -----------------------------------------------------------------------
+  // ADMIN: UNIT SUMMARY (owner + active operator + pricing + upcoming blocks)
+  // -----------------------------------------------------------------------
+
+  async getUnitSummary(id: string) {
+    const unit = await this.prisma.unit.findUnique({
+      where: { id },
+      include: {
+        promotion: {
+          select: { id: true, slug: true, name: true, city: true, country: true },
+        },
+        owner: true,
+        operatorAssignments: {
+          where: { status: 'ACTIVE' },
+          orderBy: { startDate: 'desc' },
+          take: 1,
+        },
+        pricingProfiles: {
+          orderBy: [{ isActive: 'desc' }, { operationMode: 'asc' }],
+        },
+        availabilityBlocks: {
+          where: { endDate: { gte: new Date() } },
+          orderBy: { startDate: 'asc' },
+        },
+      },
+    });
+
+    if (!unit) {
+      throw new NotFoundException('Unit not found');
+    }
+
+    return unit;
+  }
+
+  // -----------------------------------------------------------------------
   // PUBLIC INQUIRY (maps to Lead creation)
   // -----------------------------------------------------------------------
 
   async submitInquiry(dto: SubmitInquiryDto) {
-    // Resolve the unit to get promotionId
     const unit = await this.prisma.unit.findUnique({
       where: { id: dto.unitId },
       select: { id: true, promotionId: true },
@@ -128,7 +162,6 @@ export class PremiumAssetsService {
       throw new NotFoundException('Unit not found');
     }
 
-    // Resolve partner from referral code if provided
     let partnerId: string | undefined;
     if (dto.referralCode) {
       const partner = await this.prisma.partner.findUnique({
@@ -139,7 +172,6 @@ export class PremiumAssetsService {
       }
     }
 
-    // Map InquiryType to a notes prefix so agents have context
     const inquiryNote = `[Inquiry: ${dto.inquiryType}]${dto.message ? ` ${dto.message}` : ''}`;
 
     const lead = await this.prisma.lead.create({
@@ -166,7 +198,6 @@ export class PremiumAssetsService {
       },
     });
 
-    // Create attribution record if partner resolved
     if (partnerId) {
       await this.prisma.attribution.create({
         data: {
@@ -190,6 +221,10 @@ export class PremiumAssetsService {
   async setUnitOperation(unitId: string, dto: SetUnitOperationDto): Promise<void> {
     const unit = await this.prisma.unit.findUnique({ where: { id: unitId } });
     if (!unit) throw new NotFoundException('Unit not found');
+
+    if (dto.operationMode === undefined && dto.assetStatus === undefined) {
+      throw new BadRequestException('At least one of operationMode or assetStatus must be provided');
+    }
 
     await this.prisma.unit.update({
       where: { id: unitId },
@@ -230,12 +265,26 @@ export class PremiumAssetsService {
   // ADMIN: OPERATOR ASSIGNMENTS
   // -----------------------------------------------------------------------
 
+  async getUnitOperators(unitId: string) {
+    const unit = await this.prisma.unit.findUnique({ where: { id: unitId } });
+    if (!unit) throw new NotFoundException('Unit not found');
+
+    return this.prisma.operatorAssignment.findMany({
+      where: { unitId },
+      orderBy: [{ status: 'asc' }, { startDate: 'desc' }],
+    });
+  }
+
   async assignOperator(unitId: string, dto: AssignOperatorDto) {
     const unit = await this.prisma.unit.findUnique({ where: { id: unitId } });
     if (!unit) throw new NotFoundException('Unit not found');
 
-    if (dto.endDate && dto.endDate <= dto.startDate) {
-      throw new BadRequestException('endDate must be after startDate');
+    if (dto.endDate) {
+      const start = new Date(dto.startDate);
+      const end = new Date(dto.endDate);
+      if (end <= start) {
+        throw new BadRequestException('endDate must be after startDate');
+      }
     }
 
     return this.prisma.operatorAssignment.create({
@@ -270,15 +319,17 @@ export class PremiumAssetsService {
     const unit = await this.prisma.unit.findUnique({ where: { id: unitId } });
     if (!unit) throw new NotFoundException('Unit not found');
 
-    if (dto.endDate <= dto.startDate) {
+    const start = new Date(dto.startDate);
+    const end = new Date(dto.endDate);
+    if (end <= start) {
       throw new BadRequestException('endDate must be after startDate');
     }
 
     return this.prisma.availabilityBlock.create({
       data: {
         unitId,
-        startDate: new Date(dto.startDate),
-        endDate: new Date(dto.endDate),
+        startDate: start,
+        endDate: end,
         reason: dto.reason,
         notes: dto.notes,
       },
