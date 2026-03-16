@@ -47,7 +47,11 @@ export function PartnerDashboard() {
     );
   }
 
-  if (!data) return null;
+  if (!data) return (
+    <div className="p-8">
+      <p className="text-muted-foreground">Error al cargar el dashboard</p>
+    </div>
+  );
 
   const { overview, leadsByStatus, recentLeads, promotions } = data;
 

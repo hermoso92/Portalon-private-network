@@ -2,7 +2,28 @@
 # Portalon Backend - Multi-stage Dockerfile
 # ============================================================
 
-# Stage 1: Builder
+# Stage 1: Development
+FROM node:20-alpine AS development
+
+WORKDIR /app
+
+RUN apk add --no-cache dumb-init curl
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npx prisma generate
+
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+  CMD curl -f http://localhost:3001/api/v1/health || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:dev"]
+
+# Stage 2: Builder
 FROM node:20-alpine AS builder
 
 WORKDIR /app
