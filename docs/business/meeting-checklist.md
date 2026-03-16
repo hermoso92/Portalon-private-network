@@ -41,7 +41,7 @@ curl -s -X POST http://localhost:3001/api/v1/auth/login \
 ```
 
 - [ ] Seed ejecutado sin errores
-- [ ] 8 leads visibles en `/admin/leads`
+- [ ] 11+ leads visibles en `/admin/leads` (pipeline completo)
 - [ ] Michael Davidson aparece con estado WON y score 94
 - [ ] David Chen aparece con alerta roja "Requiere revisión manual"
 - [ ] Comisiones de Carlos García: 15.525€ en Davidson + 3.975€ en Sophie

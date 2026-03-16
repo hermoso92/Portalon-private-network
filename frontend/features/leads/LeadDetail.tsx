@@ -17,6 +17,7 @@ import {
   getScoreBadge,
   BUYER_TYPE_LABELS,
   COMMISSION_TRIGGER_LABELS,
+  COMMISSION_STATUS_LABELS,
 } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
 
@@ -249,7 +250,7 @@ export function LeadDetail({ leadId }: Props) {
                         flag.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
                         'bg-gray-100 text-gray-600'
                       }`}>
-                        {flag.severity}
+                        {flag.severity === 'high' ? 'Alto' : flag.severity === 'medium' ? 'Medio' : 'Bajo'}
                       </span>
                       <span className="text-muted-foreground">{flag.description}</span>
                     </div>
@@ -398,7 +399,7 @@ export function LeadDetail({ leadId }: Props) {
                       <p className="font-medium">
                         {Number(ev.commissionAmount).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
                       </p>
-                      <p className="text-xs text-muted-foreground">{ev.status}</p>
+                      <p className="text-xs text-muted-foreground">{COMMISSION_STATUS_LABELS[ev.status] || ev.status}</p>
                     </div>
                   </div>
                 ))}
