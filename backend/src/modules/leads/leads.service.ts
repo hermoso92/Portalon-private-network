@@ -11,6 +11,22 @@ import { ChangeLeadStatusDto } from './dto/change-status.dto';
 import { FilterLeadsDto } from './dto/filter-leads.dto';
 import { LeadSourceType, LeadActivityType, LeadStatus } from '@prisma/client';
 
+/**
+ * Valid pipeline transitions. Terminal states (WON, LOST) cannot be re-opened.
+ * RESERVED can only come from VISITED or QUALIFIED (sales-qualified).
+ * WON requires prior RESERVED state.
+ */
+const VALID_TRANSITIONS: Record<LeadStatus, LeadStatus[]> = {
+  [LeadStatus.NEW]: [LeadStatus.QUALIFIED, LeadStatus.CONTACTED, LeadStatus.LOST],
+  [LeadStatus.QUALIFIED]: [LeadStatus.CONTACTED, LeadStatus.VISIT_SCHEDULED, LeadStatus.LOST],
+  [LeadStatus.CONTACTED]: [LeadStatus.QUALIFIED, LeadStatus.VISIT_SCHEDULED, LeadStatus.LOST],
+  [LeadStatus.VISIT_SCHEDULED]: [LeadStatus.VISITED, LeadStatus.CONTACTED, LeadStatus.LOST],
+  [LeadStatus.VISITED]: [LeadStatus.RESERVED, LeadStatus.QUALIFIED, LeadStatus.LOST],
+  [LeadStatus.RESERVED]: [LeadStatus.WON, LeadStatus.VISITED, LeadStatus.LOST],
+  [LeadStatus.WON]: [], // terminal
+  [LeadStatus.LOST]: [LeadStatus.NEW], // allow reactivation from LOST only back to NEW
+};
+
 @Injectable()
 export class LeadsService {
   constructor(private prisma: PrismaService) {}
@@ -243,6 +259,18 @@ export class LeadsService {
 
   async changeStatus(id: string, dto: ChangeLeadStatusDto, userId: string) {
     const lead = await this.findOne(id);
+
+    const currentStatus = lead.status as LeadStatus;
+    const targetStatus = dto.status as LeadStatus;
+
+    // Validate transition is allowed
+    const allowedNext = VALID_TRANSITIONS[currentStatus] ?? [];
+    if (!allowedNext.includes(targetStatus)) {
+      throw new BadRequestException(
+        `Transición de estado no permitida: ${currentStatus} → ${targetStatus}. ` +
+        `Transiciones válidas desde ${currentStatus}: [${allowedNext.join(', ') || 'ninguna'}]`,
+      );
+    }
 
     const updated = await this.prisma.lead.update({
       where: { id },

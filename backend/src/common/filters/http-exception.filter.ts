@@ -16,6 +16,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const isProduction = process.env.NODE_ENV === 'production';
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
@@ -36,16 +37,24 @@ export class HttpExceptionFilter implements ExceptionFilter {
         }
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      // In production, never leak internal error details to clients.
+      // Log the full stack server-side but return a generic message.
       this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
+      message = isProduction ? 'Internal server error' : exception.message;
     }
 
-    response.status(status).json({
+    const responseBody: Record<string, any> = {
       statusCode: status,
       message,
-      errors,
       timestamp: new Date().toISOString(),
       path: request.url,
-    });
+    };
+
+    // Include validation errors (safe to expose - they come from user input)
+    if (errors !== undefined) {
+      responseBody.errors = errors;
+    }
+
+    response.status(status).json(responseBody);
   }
 }

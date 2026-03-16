@@ -1,0 +1,79 @@
+# ============================================================
+# docker-compose.override.yml - LOCAL DEVELOPMENT OVERRIDES
+# ============================================================
+# This file is automatically merged with docker-compose.yml
+# when you run `docker compose up` locally.
+#
+# PURPOSE: Makes local development easier by:
+#   - Exposing postgres/redis ports directly (so you can use TablePlus, redis-cli etc.)
+#   - Using local .env file for secrets (safe for dev, with weak passwords)
+#   - Mounting backend/frontend source for hot-reload
+#   - Disabling SSL requirement for nginx (just HTTP locally)
+#   - Providing safe default passwords that trigger no startup errors
+#
+# USAGE:
+#   # From the infrastructure/ directory:
+#   docker compose up -d
+#
+#   # Or from repo root:
+#   docker compose -f infrastructure/docker-compose.yml \
+#                  -f infrastructure/docker-compose.override.yml up -d
+#
+# WARNING: Never use this override file in production.
+#          In production, use docker-compose.yml alone with proper secrets.
+# ============================================================
+
+version: '3.9'
+
+services:
+  postgres:
+    # Expose postgres directly for local tools (TablePlus, pgAdmin, psql)
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev_password_change_me}
+
+  redis:
+    # Expose redis directly for local tools (redis-cli, RedisInsight)
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-localdev_redis_pw} --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  backend:
+    build:
+      target: development
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-portalon}:${POSTGRES_PASSWORD:-localdev_password_change_me}@postgres:5432/${POSTGRES_DB:-portalon_db}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-localdev_redis_pw}
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-not-for-production-32x}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-dev-refresh-secret-not-for-production}
+      OPENCLAW_BASE_URL: ${OPENCLAW_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      # Hot-reload: mount source directly (requires ts-node or nodemon in dev target)
+      - ../backend/src:/app/src:ro
+      - ../backend/prisma:/app/prisma:ro
+    ports:
+      # Expose API directly for local testing without nginx
+      - "3001:3001"
+
+  frontend:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
+    ports:
+      # Expose Next.js directly for local development
+      - "3000:3000"
+
+  nginx:
+    # In local dev, you typically don't need nginx at all.
+    # Keep it in the stack but map to high ports to avoid conflicts.
+    ports:
+      - "8080:80"
+      - "8443:443"
+    profiles:
+      # Only start nginx if you explicitly request the 'proxy' profile:
+      #   docker compose --profile proxy up
+      - proxy
