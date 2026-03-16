@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   useReactTable,
   getCoreRowModel,
@@ -39,6 +39,11 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export function LeadsCRM() {
   const router = useRouter();
+  const pathname = usePathname();
+  // Derive the correct lead detail base path based on the current route context.
+  // Partner routes live under /partner/*, admin routes under /admin/*.
+  const isPartnerContext = pathname?.startsWith('/partner');
+  const leadDetailBasePath = isPartnerContext ? '/partner/leads' : '/admin/leads';
   const [leads, setLeads] = useState<any[]>([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -245,7 +250,7 @@ export function LeadsCRM() {
                   <tr
                     key={row.id}
                     className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/admin/leads/${row.original.id}`)}
+                    onClick={() => router.push(`${leadDetailBasePath}/${row.original.id}`)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-4 py-3">
