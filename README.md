@@ -1,168 +1,270 @@
 # Portalon Private Network
 
-Red privada de distribución comercial para promociones inmobiliarias de alto ticket. Plataforma B2B SaaS que conecta promotores con una red selecta de partners (brokers, agentes y family offices) a través de un CRM con pipeline, scoring IA y comisiones automatizadas.
+Private commercial distribution network for premium real estate developments. Connects developers with external partner networks (brokers, advisors, agencies) to manage leads, pipeline, attributions, and commissions — all in one platform.
+
+---
+
+## What It Does
+
+- **Partner Portal**: Each partner gets a private login, referral link, and real-time visibility into their leads and commissions
+- **CRM Pipeline**: Full lead lifecycle from public form or referral to closed sale (8 pipeline stages)
+- **Commission Engine**: Rules-based commissions (percentage or fixed) auto-triggered at reservation and sale, with deduplication
+- **AI Lead Scoring**: Ollama-powered lead classification (0-100), executive summary, and risk flag detection
+- **Attribution Tracking**: Every lead is attributed to a source (partner referral, landing page, direct)
+- **Public Landing Page**: Conversion-optimized promotion page with embedded lead capture form
+
+---
 
 ## Stack
 
-| Capa | Tecnología |
-|------|-----------|
-| Backend | NestJS 10 + TypeScript, Prisma ORM, PostgreSQL 16 |
-| Frontend | Next.js 14 (App Router), TailwindCSS, shadcn/ui, Zustand |
-| IA | OpenClaw / Ollama-compatible (self-hosted, llama3.1) |
-| Infra | Docker Compose, Nginx (SSL termination), Redis 7 |
-| Auth | JWT dual-token (access 15m + refresh 7d), rotación de tokens |
+| Layer | Technology |
+|-------|-----------|
+| Backend | NestJS 10, TypeScript, Prisma ORM |
+| Database | PostgreSQL 16 |
+| Cache / Rate Limiting | Redis 7 |
+| Frontend | Next.js 14 (App Router), Tailwind CSS, shadcn/ui |
+| AI | Ollama-compatible (default: llama3.1) |
+| Reverse Proxy | nginx (SSL termination, rate limiting) |
+| Deployment | Docker Compose |
 
-## Arranque rápido (desarrollo)
+---
+
+## Quick Start (Local Development)
 
 ```bash
-# 1. Variables de entorno
+# 1. Clone and configure
+git clone <repo>
+cd Portalon-private-network
 cp .env.example .env
-# Edita .env — ver sección Variables de entorno
+# Edit .env — at minimum set JWT_SECRET, JWT_REFRESH_SECRET, POSTGRES_PASSWORD, REDIS_PASSWORD
 
-# 2. Levantar infra local
+# 2. Start all services (from infrastructure/)
 cd infrastructure
-docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+docker compose up -d
 
-# 3. Backend
-cd backend
-npm install
-npx prisma migrate dev
-npx prisma db seed
-npm run start:dev
+# 3. Apply migrations and seed demo data
+docker compose exec backend npx prisma migrate deploy
+docker compose exec backend npx prisma db seed
 
-# 4. Frontend
-cd frontend
-npm install
-npm run dev
+# 4. Access
+open http://localhost:3000          # Frontend
+open http://localhost:3001/api/docs # Swagger (dev only)
 ```
 
-- API: http://localhost:3001/api/v1
-- Swagger: http://localhost:3001/api/docs
-- Frontend: http://localhost:3000
+The `docker-compose.override.yml` is auto-applied in local dev and exposes postgres (5432) and redis (6379) directly for tooling.
 
-## Despliegue en VPS
+---
 
-Ver [DEPLOY.md](./DEPLOY.md) para la guía completa paso a paso.
+## Demo Credentials
 
-```bash
-cd infrastructure
-bash scripts/deploy.sh --seed   # primera vez
-bash scripts/deploy.sh          # actualizaciones
-```
-
-## Credenciales demo (tras seed)
-
-| Rol | Email | Contraseña |
-|-----|-------|-----------|
+| Role | Email | Password |
+|------|-------|---------|
 | Super Admin | admin@portalon.com | Portalon2024! |
-| Agente Comercial | comercial@portalon.com | Agent2024! |
-| Partner (APPROVED) | partner@demo.com | Partner2024! |
-| Partner (APPROVED) | ana.torres@demo.com | Partner2024! |
-| Partner (PENDING) | pendiente@demo.com | Partner2024! |
+| Sales Agent | comercial@portalon.com | Agent2024! |
+| Partner (Carlos García) | partner@demo.com | Partner2024! |
+| Partner (Ana Torres) | ana.torres@demo.com | Partner2024! |
+| Partner PENDING | pendiente@demo.com | Partner2024! |
 
-**Cambiar todas las contraseñas tras el primer acceso en producción.**
+**WARNING**: Change all credentials before any real deployment.
 
-## Arquitectura de módulos (backend)
+### Referral Codes
+- Carlos García: `CARL9X2F`
+- Ana Torres: `ANAT8K3M`
 
-```
-src/modules/
-├── auth/          JWT login/refresh/logout para users
-├── partners/      Registro, login y gestión de partners
-├── promotions/    Promociones inmobiliarias y sus assets
-├── units/         Unidades (pisos/apartamentos) por promoción
-├── leads/         CRM pipeline + actividades + scoring IA
-├── attribution/   Tracking de origen de cada lead
-├── commissions/   Reglas y eventos de comisiones automáticas
-├── dashboard/     KPIs y métricas por rol
-├── ai/            Integración OpenClaw (classify, summarize, riskFlags)
-├── audit/         Log de auditoría de acciones admin
-└── users/         Gestión de usuarios internos
-```
+Test a referral: `/promocion/el-portalon-del-brillante?ref=CARL9X2F`
 
-## Pipeline de leads
+---
+
+## Architecture
 
 ```
-NEW → QUALIFIED → CONTACTED → VISIT_SCHEDULED → VISITED → RESERVED → WON
- └─────────────────────────────────────────────────────────────────→ LOST
+Internet ──→ nginx (80/443)
+               ├──→ /api/*    ──→ backend (NestJS :3001)
+               └──→ /*        ──→ frontend (Next.js :3000)
+
+Internal Docker network (no external access):
+  ├── PostgreSQL :5432
+  └── Redis :6379
 ```
 
-Las transiciones se validan en `leads.service.ts`. Los estados terminales (WON, LOST←NEW) son irreversibles excepto reactivación desde LOST.
+### Key Design Decisions
 
-## Comisiones automáticas
+**Unified JWT Strategy**: Both users and partners use the same JWT strategy. Token payload includes `type: 'user' | 'partner'`. The strategy looks up the correct table based on type. Partners never get confused with User records.
 
-Se calculan automáticamente al mover un lead a `RESERVED` (1,5%) o `WON` (3%) si existe una regla activa para la promoción y el lead tiene atribución de partner. Deduplicadas por `(leadId, triggerType)`.
+**Lead Pipeline Validation**: State machine enforced in `leads.service.ts`. Invalid transitions return HTTP 400. Terminal state `WON` has no outgoing transitions.
 
-## Integración IA
+**Commission Deduplication**: `processLeadEvent()` checks for existing events before creating. Safe to call multiple times.
 
-Tres operaciones sobre cada lead:
-- `classifyLead` → score 0-100 + heatLevel (cold/warm/hot)
-- `summarizeLead` → resumen ejecutivo en lenguaje natural
-- `detectRiskFlags` → alertas de riesgo (financiación dudosa, datos inconsistentes, etc.)
+**Partner Scoping**: Partners are restricted to their own leads at the database query level, not the application level.
 
-Se ejecutan de forma asíncrona (fire & forget) al crear o actualizar un lead. Si OpenClaw no está disponible, se aplica fallback silencioso con valores por defecto.
+---
 
-## Seguridad
-
-- Secrets mínimos de 32 chars — usar `openssl rand -hex 32`
-- PostgreSQL y Redis nunca expuestos externamente (red Docker interna)
-- Helmet + CORS restrictivo en backend
-- Throttling global: 100 req/min por IP
-- Validación con `class-validator` + whitelist estricto en todos los DTOs
-- Contraseñas hasheadas con bcrypt (cost=12)
-
-## Variables de entorno críticas
-
-```bash
-JWT_SECRET=<openssl rand -hex 32>
-JWT_REFRESH_SECRET=<openssl rand -hex 32>  # distinto al anterior
-POSTGRES_PASSWORD=<contraseña fuerte>
-REDIS_PASSWORD=<contraseña fuerte>
-FRONTEND_URL=https://tu-dominio.com
-NEXT_PUBLIC_API_URL=https://tu-dominio.com/api/v1
-OPENCLAW_BASE_URL=http://localhost:11434
-```
-
-## Comandos útiles
-
-```bash
-# Migraciones
-cd backend && npx prisma migrate dev          # desarrollo
-cd backend && npx prisma migrate deploy       # producción
-
-# Reseed (borra y recrea datos de demo)
-cd backend && npx prisma db seed
-
-# Logs en producción
-docker compose logs -f backend
-docker compose logs -f frontend
-
-# Backup manual de la DB
-bash infrastructure/scripts/backup_postgres.sh
-
-# Acceso a la DB
-docker compose exec postgres psql -U portalon -d portalon_db
-```
-
-## Estructura de carpetas
+## Project Structure
 
 ```
 Portalon-private-network/
-├── backend/           NestJS API
-│   ├── prisma/        Schema, migraciones, seed
+├── backend/
+│   ├── prisma/
+│   │   ├── schema.prisma      # Data model
+│   │   ├── seed.ts            # Demo data (9 leads, 3 partners, commissions)
+│   │   └── migrations/
 │   └── src/
-│       ├── common/    Guards, decoradores, filtros, interceptores
-│       ├── config/    app.config.ts
-│       └── modules/   11 módulos de negocio
-├── frontend/          Next.js 14 App Router
-│   ├── app/           Rutas (public) y (private)/admin + partner
-│   ├── components/    UI compartidos (shadcn/ui)
-│   ├── features/      Componentes de negocio por dominio
-│   └── lib/           API client, auth store, utils
-├── infrastructure/    Docker Compose, Nginx, scripts
-│   ├── docker-compose.yml
-│   ├── docker-compose.override.yml  (dev local)
-│   ├── nginx/
-│   └── scripts/       deploy.sh, backup_postgres.sh
-└── docs/
-    └── business/      Documentación comercial y operativa
+│       ├── main.ts            # Bootstrap (Helmet, CORS, ValidationPipe, Swagger)
+│       ├── app.module.ts      # Module registry
+│       ├── common/            # Guards, decorators, filters, Prisma service
+│       └── modules/           # Feature modules
+│           ├── auth/          # User auth (login, refresh, logout)
+│           ├── partners/      # Partner CRUD + login
+│           ├── leads/         # CRM pipeline + AI trigger
+│           ├── commissions/   # Rules + events + payouts
+│           ├── attribution/   # Lead source attribution
+│           ├── ai/            # Ollama client + scoring prompts
+│           ├── promotions/    # Promotion management
+│           ├── units/         # Property unit inventory
+│           ├── dashboard/     # KPI aggregates
+│           └── audit/         # Immutable audit log
+├── frontend/
+│   ├── app/                   # Next.js App Router
+│   │   ├── (public)/          # Landing page + partner registration
+│   │   └── (private)/
+│   │       ├── admin/         # Staff portal
+│   │       └── partner/       # External partner portal
+│   ├── features/              # Feature-level components
+│   ├── components/ui/         # shadcn/ui component library
+│   └── lib/                   # API client, auth store, utilities
+├── infrastructure/
+│   ├── docker-compose.yml         # Production
+│   ├── docker-compose.override.yml # Local dev
+│   ├── nginx/                     # Reverse proxy config
+│   └── scripts/                   # Backup, deploy, init-db
+├── docs/business/             # Product docs, demo scripts, checklists
+└── .claude/agents/            # Claude Code subagent definitions
 ```
+
+---
+
+## API Reference
+
+Base URL: `/api/v1`
+
+### Auth
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | /auth/login | Public | User login |
+| POST | /auth/refresh | Public | Refresh access token |
+| POST | /auth/logout | Bearer | Invalidate refresh token |
+| GET | /auth/me | Bearer | Current user |
+
+### Partners
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | /partners/register | Public | Partner self-registration |
+| POST | /partners/login | Public | Partner login |
+| GET | /partners | Admin | List all partners |
+| GET | /partners/:id | Admin | Partner detail + leads |
+| PATCH | /partners/:id/status | Admin | Approve/reject partner |
+
+### Leads
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | /leads/public | Public | Lead from landing form |
+| POST | /leads | PARTNER/AGENT+ | Create lead manually |
+| GET | /leads | PARTNER/AGENT+ | List leads (partner-scoped) |
+| GET | /leads/:id | PARTNER/AGENT+ | Lead detail + timeline |
+| PATCH | /leads/:id | AGENT+ | Update lead fields |
+| PATCH | /leads/:id/status | AGENT+ | Pipeline transition |
+| POST | /leads/:id/score | AGENT+ | Manual AI re-score |
+
+Full Swagger documentation available at `/api/docs` (development mode only).
+
+---
+
+## Environment Variables
+
+See `.env.example` for the complete list with documentation. Required variables:
+
+```bash
+POSTGRES_PASSWORD=          # Database password (required, no default)
+REDIS_PASSWORD=             # Redis auth password
+JWT_SECRET=                 # Access token secret (>= 32 chars)
+JWT_REFRESH_SECRET=         # Refresh token secret (different from JWT_SECRET)
+FRONTEND_URL=               # CORS allowed origin
+NEXT_PUBLIC_API_URL=        # Browser-accessible API URL
+```
+
+Generate secrets: `openssl rand -base64 48`
+
+---
+
+## Running Tests
+
+```bash
+cd backend
+npm test              # All unit tests
+npm run test:watch    # Watch mode
+npm run test:cov      # Coverage report
+```
+
+Key test files:
+- `src/modules/auth/auth.service.spec.ts`
+- `src/modules/leads/leads.service.spec.ts`
+- `src/modules/auth/strategies/jwt.strategy.spec.ts`
+
+---
+
+## Deployment
+
+See `infrastructure/CLAUDE.md` for full deployment guide. Quick reference:
+
+```bash
+# Production deploy
+cd /opt/portalon/infrastructure
+docker compose up -d --build
+docker compose exec backend npx prisma migrate deploy
+```
+
+Backup (daily at 3am via cron):
+```bash
+/opt/portalon/infrastructure/scripts/backup_postgres.sh
+```
+
+Restore procedure is documented at the bottom of the backup script.
+
+---
+
+## Documentation
+
+| Document | Location |
+|----------|---------|
+| Root architecture overview | CLAUDE.md |
+| Backend architecture | backend/CLAUDE.md |
+| Frontend architecture | frontend/CLAUDE.md |
+| Infrastructure guide | infrastructure/CLAUDE.md |
+| Leads module | backend/src/modules/leads/CLAUDE.md |
+| Commissions module | backend/src/modules/commissions/CLAUDE.md |
+| Attribution module | backend/src/modules/attribution/CLAUDE.md |
+| AI module | backend/src/modules/ai/CLAUDE.md |
+| Product one pager | docs/business/product-one-pager.md |
+| Demo script | docs/business/demo-script.md |
+| Pilot checklist | docs/business/pilot-checklist.md |
+| Production checklist | docs/business/production-checklist.md |
+| Known risks | docs/business/known-risks.md |
+
+---
+
+## Security
+
+- Helmet security headers on all responses
+- CORS restricted to `FRONTEND_URL` only
+- JWT access tokens expire in 15 minutes; refresh tokens rotate on use
+- Passwords hashed with bcrypt (12 rounds)
+- PostgreSQL and Redis inaccessible externally (internal Docker network)
+- Stack traces never sent to clients in production
+- Rate limiting: 100 req/min global, 10 req/min on public lead form
+- Partners are scoped at query level — cannot see other partners' data
+
+---
+
+## License
+
+Private. All rights reserved.
