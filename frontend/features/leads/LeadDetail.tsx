@@ -15,6 +15,8 @@ import {
   LEAD_STATUS_COLORS,
   getScoreColor,
   getScoreBadge,
+  BUYER_TYPE_LABELS,
+  COMMISSION_TRIGGER_LABELS,
 } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
 
@@ -95,11 +97,26 @@ export function LeadDetail({ leadId }: Props) {
 
   if (!lead) return null;
 
-  const riskFlags = Array.isArray(lead.aiRiskFlags) ? lead.aiRiskFlags : [];
+  const aiRiskData = lead.aiRiskFlags || {};
+  const riskFlags = Array.isArray(aiRiskData.flags) ? aiRiskData.flags :
+                    Array.isArray(aiRiskData) ? aiRiskData : [];
+  const overallRisk: string | undefined = aiRiskData.overallRisk;
+  const requiresManualReview: boolean = aiRiskData.requiresManualReview === true;
   const highRisks = riskFlags.filter((f: any) => f.severity === 'high');
 
   return (
     <div className="p-8 space-y-6 max-w-6xl">
+      {/* Manual review alert */}
+      {requiresManualReview && (
+        <div className="flex items-center gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-red-600" />
+          <div>
+            <p className="font-semibold text-sm">Requiere revisión manual</p>
+            <p className="text-xs text-red-700">Este lead tiene señales de riesgo que requieren validación antes de continuar.</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" onClick={() => router.back()}>
@@ -120,9 +137,11 @@ export function LeadDetail({ leadId }: Props) {
 
         <div className="flex items-center gap-3">
           {lead.score !== null && (
-            <div className="text-center">
+            <div className={`text-center px-4 py-2 rounded-xl ${
+              lead.score >= 70 ? 'bg-green-50' : lead.score >= 40 ? 'bg-yellow-50' : 'bg-red-50'
+            }`}>
               <p className={`text-3xl font-bold ${getScoreColor(lead.score)}`}>{lead.score}</p>
-              <p className="text-xs text-muted-foreground">{getScoreBadge(lead.score)}</p>
+              <p className={`text-xs font-medium ${getScoreColor(lead.score)}`}>{getScoreBadge(lead.score)}</p>
             </div>
           )}
 
@@ -170,10 +189,10 @@ export function LeadDetail({ leadId }: Props) {
                     {lead.budgetRange}
                   </div>
                 )}
-                {lead.buyerType && (
+                {lead.buyerType && lead.buyerType !== 'UNKNOWN' && (
                   <div className="text-muted-foreground">
                     <span className="text-xs uppercase tracking-wide">Tipo: </span>
-                    {lead.buyerType}
+                    {BUYER_TYPE_LABELS[lead.buyerType] || lead.buyerType}
                   </div>
                 )}
                 {lead.language && (
@@ -203,11 +222,22 @@ export function LeadDetail({ leadId }: Props) {
 
           {/* Risk flags */}
           {riskFlags.length > 0 && (
-            <Card className={highRisks.length > 0 ? 'border-l-4 border-l-red-500' : ''}>
+            <Card className={highRisks.length > 0 ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-yellow-400'}>
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <AlertTriangle className={`h-4 w-4 ${highRisks.length > 0 ? 'text-red-500' : 'text-yellow-500'}`} />
-                  Flags de riesgo
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <AlertTriangle className={`h-4 w-4 ${highRisks.length > 0 ? 'text-red-500' : 'text-yellow-500'}`} />
+                    Flags de riesgo
+                  </span>
+                  {overallRisk && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      overallRisk === 'high' ? 'bg-red-100 text-red-700' :
+                      overallRisk === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      Riesgo {overallRisk === 'high' ? 'alto' : overallRisk === 'medium' ? 'medio' : 'bajo'}
+                    </span>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -363,7 +393,7 @@ export function LeadDetail({ leadId }: Props) {
               <CardContent>
                 {lead.commissionEvents.map((ev: any) => (
                   <div key={ev.id} className="flex justify-between text-sm py-2 border-b last:border-0">
-                    <span className="text-muted-foreground">{ev.triggerType}</span>
+                    <span className="text-muted-foreground">{COMMISSION_TRIGGER_LABELS[ev.triggerType] || ev.triggerType}</span>
                     <div className="text-right">
                       <p className="font-medium">
                         {Number(ev.commissionAmount).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}

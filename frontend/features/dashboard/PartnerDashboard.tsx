@@ -68,6 +68,7 @@ export function PartnerDashboard() {
                 <p className="font-mono text-sm text-portalon-gold-light">
                   Código: <strong>{partnerInfo.referralCode}</strong>
                 </p>
+                <p className="text-white/40 text-xs mt-1">Comparte este enlace con tus clientes inversores</p>
               </div>
               <div className="flex gap-3">
                 <Button
@@ -108,6 +109,14 @@ export function PartnerDashboard() {
           value={formatCurrency(Number(overview.pendingCommissions))}
           bg="bg-yellow-50"
         />
+        {overview.totalCommissions !== undefined && (
+          <KpiCard
+            icon={<Euro className="h-5 w-5 text-emerald-600" />}
+            label="Comisión total generada"
+            value={formatCurrency(Number(overview.totalCommissions))}
+            bg="bg-emerald-50"
+          />
+        )}
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">

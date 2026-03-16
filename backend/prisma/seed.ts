@@ -113,6 +113,8 @@ un activo seguro, rentable y con alto valor patrimonial.`,
       referralCode: 'CARL9X2F',
       passwordHash: partnerPasswordHash,
       notes: 'Partner principal de demo — broker con cartera en Madrid y Barcelona',
+      bankName: 'BBVA',
+      bankAccountMasked: 'ES12 **** **** **** 4521',
     },
   });
 
@@ -179,6 +181,7 @@ un activo seguro, rentable y con alto valor patrimonial.`,
     country: string; status: LeadStatus; sourceType: LeadSourceType;
     partnerId?: string; unitCode?: string; score?: number; aiSummary?: string;
     assignedToUserId?: string; budgetRange?: string; interestLevel?: string;
+    buyerType?: string; language?: string; aiRiskFlags?: object;
   }) {
     const unitId = data.unitCode ? units[data.unitCode]?.id : undefined;
     const lead = await prisma.lead.create({
@@ -190,6 +193,9 @@ un activo seguro, rentable y con alto valor patrimonial.`,
         status: data.status, score: data.score, aiSummary: data.aiSummary,
         assignedToUserId: data.assignedToUserId,
         budgetRange: data.budgetRange, interestLevel: data.interestLevel,
+        buyerType: data.buyerType as any,
+        language: data.language,
+        aiRiskFlags: data.aiRiskFlags as any,
       },
     });
     await prisma.leadActivity.create({
@@ -212,12 +218,16 @@ un activo seguro, rentable y con alto valor patrimonial.`,
     phone: '+44 7911 234567', country: 'GB', status: LeadStatus.WON,
     sourceType: LeadSourceType.PARTNER_REFERRAL, partnerId: partner1.id, unitCode: 'C-02',
     score: 94,
-    aiSummary: 'Inversor británico con alta liquidez. Compra en efectivo, sin financiación. Ha visitado 2 veces. Operación cerrada. Riesgo muy bajo.',
+    aiSummary: 'Inversor puro, perfil cash buyer. Ha comprado 2 activos similares en Lisboa y Marbella. Alta capacidad ejecutiva, cierre en 3 semanas. Sin objeciones pendientes.',
     assignedToUserId: agent.id, budgetRange: '300000-400000', interestLevel: 'HIGH',
+    buyerType: 'INVESTOR', language: 'en-GB',
+    aiRiskFlags: { flags: [], overallRisk: 'low', requiresManualReview: false },
   });
   await prisma.leadActivity.createMany({ data: [
     { leadId: leadWon.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'QUALIFIED', note: 'Perfil verificado. Alto potencial.' } },
+    { leadId: leadWon.id, userId: agent.id, activityType: LeadActivityType.CALL_LOGGED, payload: { note: 'Llamada inicial 15 min. Confirma interés en ático. Habla español básico.' } },
     { leadId: leadWon.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'QUALIFIED', newStatus: 'VISITED', note: 'Visita presencial. Muy satisfecho.' } },
+    { leadId: leadWon.id, userId: agent.id, activityType: LeadActivityType.EMAIL_SENT, payload: { note: 'Enviada memoria de calidades y proyección de rentabilidad turística.' } },
     { leadId: leadWon.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'VISITED', newStatus: 'RESERVED', note: 'Contrato de reserva firmado. Señal 10.000€.' } },
     { leadId: leadWon.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'RESERVED', newStatus: 'WON', note: 'Escritura firmada ante notario.' } },
   ]});
@@ -232,13 +242,16 @@ un activo seguro, rentable y con alto valor patrimonial.`,
     phone: '+33 6 12 34 56 78', country: 'FR', status: LeadStatus.RESERVED,
     sourceType: LeadSourceType.PARTNER_REFERRAL, partnerId: partner1.id, unitCode: 'C-01',
     score: 87,
-    aiSummary: 'Inversora francesa diversificando patrimonio. Segunda visita realizada. Reserva firmada, pendiente de escritura.',
+    aiSummary: 'Inversora con cartera en París y Burdeos. Busca diversificación geográfica en mercado español. Segunda visita muy positiva. Solicita condiciones de pago a 60 días para escritura.',
     assignedToUserId: agent.id, budgetRange: '250000-300000', interestLevel: 'HIGH',
+    buyerType: 'INVESTOR', language: 'fr-FR',
+    aiRiskFlags: { flags: [], overallRisk: 'low', requiresManualReview: false },
   });
   await prisma.leadActivity.createMany({ data: [
     { leadId: leadReserved.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'QUALIFIED' } },
     { leadId: leadReserved.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'QUALIFIED', newStatus: 'VISIT_SCHEDULED', note: 'Visita programada.' } },
     { leadId: leadReserved.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'VISIT_SCHEDULED', newStatus: 'VISITED', note: 'Visita completada. Muy interesada.' } },
+    { leadId: leadReserved.id, userId: agent.id, activityType: LeadActivityType.CALL_LOGGED, payload: { note: 'Llamada post-visita. Negocia condiciones de pago aplazado para escritura.' } },
     { leadId: leadReserved.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'VISITED', newStatus: 'RESERVED', note: 'Reserva firmada.' } },
   ]});
   await prisma.commissionEvent.create({ data: {
@@ -253,13 +266,16 @@ un activo seguro, rentable y con alto valor patrimonial.`,
     phone: '+49 170 1234567', country: 'DE', status: LeadStatus.VISITED,
     sourceType: LeadSourceType.PARTNER_REFERRAL, partnerId: partner2.id, unitCode: 'B-01',
     score: 72,
-    aiSummary: 'Empresario alemán. Busca inversión turística. Ha visitado el ático B-01. Solicitó informe de rentabilidad.',
+    aiSummary: 'Empresario del sector tecnológico. Horizonte de inversión a 10 años, rentabilidad turística. Solicita proyección de ocupación y retorno anualizado. Pendiente de informe detallado.',
     assignedToUserId: agent.id, budgetRange: '350000-500000', interestLevel: 'MEDIUM',
+    buyerType: 'INVESTOR', language: 'de-DE',
+    aiRiskFlags: { flags: [{ type: 'financing', severity: 'medium', description: 'Solicita financiación 60%. Pendiente de confirmar aprobación bancaria.' }], overallRisk: 'medium', requiresManualReview: false },
   });
   await prisma.leadActivity.createMany({ data: [
     { leadId: leadVisited.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'QUALIFIED', note: 'Verificado con partner.' } },
     { leadId: leadVisited.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'QUALIFIED', newStatus: 'VISIT_SCHEDULED' } },
     { leadId: leadVisited.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'VISIT_SCHEDULED', newStatus: 'VISITED', note: 'Visita completada. Solicita rentabilidad.' } },
+    { leadId: leadVisited.id, userId: agent.id, activityType: LeadActivityType.EMAIL_SENT, payload: { note: 'Enviado informe de proyección de rentabilidad turística. Pendiente respuesta.' } },
   ]});
 
   // VISIT_SCHEDULED (partner2)
@@ -269,41 +285,53 @@ un activo seguro, rentable y con alto valor patrimonial.`,
     sourceType: LeadSourceType.PARTNER_MANUAL, partnerId: partner2.id, unitCode: 'A-03',
     score: 61, aiSummary: 'Compradora francesa. Uso vacacional + inversión. Visita confirmada la próxima semana.',
     budgetRange: '250000-300000', interestLevel: 'MEDIUM',
+    buyerType: 'END_USER', language: 'fr-FR',
+    aiRiskFlags: { flags: [], overallRisk: 'low', requiresManualReview: false },
   });
   await prisma.leadActivity.createMany({ data: [
     { leadId: leadScheduled.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'CONTACTED' } },
     { leadId: leadScheduled.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'CONTACTED', newStatus: 'VISIT_SCHEDULED', note: 'Visita confirmada.' } },
   ]});
 
-  // CONTACTED — lead directo web
+  // CONTACTED — lead directo web, señales de riesgo AML
   const leadContacted = await mkLead({
     firstName: 'David', lastName: 'Chen', email: 'd.chen@example.hk',
     phone: '+852 9123 4567', country: 'HK', status: LeadStatus.CONTACTED,
     sourceType: LeadSourceType.LANDING_PUBLIC,
-    score: 45, aiSummary: 'Llegado por landing page. Respuesta al primer contacto pero poca urgencia. Requiere seguimiento.',
+    score: 45, aiSummary: 'Lead de alta ticket pero con señales de riesgo. Fondos de origen no declarado. No avanzar sin validación AML. Interés genuino pero proceso bloqueado por compliance.',
     assignedToUserId: agent.id, budgetRange: '200000-300000', interestLevel: 'LOW',
+    buyerType: 'INVESTOR', language: 'zh-HK',
+    aiRiskFlags: {
+      flags: [
+        { type: 'offshore_funds', severity: 'high', description: 'Fondos de origen no declarado. Requiere revisión AML antes de avanzar.' },
+        { type: 'reachability', severity: 'low', description: 'Respuesta lenta al contacto. Canal preferido: WhatsApp.' },
+      ],
+      overallRisk: 'high',
+      requiresManualReview: true,
+    },
   });
-  await prisma.leadActivity.create({ data: {
-    leadId: leadContacted.id, userId: agent.id,
-    activityType: LeadActivityType.STATUS_CHANGE,
-    payload: { previousStatus: 'NEW', newStatus: 'CONTACTED', note: 'Primer contacto por email.' },
-  }});
+  await prisma.leadActivity.createMany({ data: [
+    { leadId: leadContacted.id, userId: agent.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'CONTACTED', note: 'Primer contacto por email.' } },
+    { leadId: leadContacted.id, userId: agent.id, activityType: LeadActivityType.CALL_LOGGED, payload: { note: 'Intento de llamada. No contesta. Enviado WhatsApp. Responde tarde con poco detalle.' } },
+  ]});
 
   // NEW leads
   await mkLead({
     firstName: 'Emma', lastName: 'Johnson', email: 'emma.j@example.co.uk',
     phone: '+44 7700 900123', country: 'GB', status: LeadStatus.NEW,
     sourceType: LeadSourceType.LANDING_PUBLIC,
-    score: 38, aiSummary: 'Lead reciente. Interés en studio. Presupuesto ajustado. Pendiente calificación.',
+    score: 38, aiSummary: 'Lead reciente llegada desde Google Ads (campaign: cordoba-inversores-2024). Interés en studio de entrada. Presupuesto ajustado. Pendiente calificación inicial.',
     budgetRange: '180000-220000', interestLevel: 'MEDIUM',
+    buyerType: 'END_USER', language: 'en-GB',
   });
 
   await mkLead({
     firstName: 'Pedro', lastName: 'Alves', email: 'pedro.alves@example.pt',
     phone: '+351 912 345 678', country: 'PT', status: LeadStatus.NEW,
     sourceType: LeadSourceType.PARTNER_REFERRAL, partnerId: partner1.id, unitCode: 'A-02',
-    score: 55, aiSummary: 'Empresario portugués referido por Carlos García. Primer contacto pendiente.',
+    score: 55, aiSummary: 'Referido directo de Carlos García. Primer contacto pendiente. Perfil inversor conocido, ya opera en mercado de Lisboa. Alto potencial.',
     budgetRange: '220000-260000', interestLevel: 'HIGH',
+    buyerType: 'INVESTOR', language: 'pt-PT',
   });
 
   // LOST — para completar el pipeline visible
@@ -311,8 +339,10 @@ un activo seguro, rentable y con alto valor patrimonial.`,
     firstName: 'Thomas', lastName: 'Müller', email: 't.muller@example.de',
     phone: '+49 160 9876543', country: 'DE', status: LeadStatus.LOST,
     sourceType: LeadSourceType.PARTNER_REFERRAL, partnerId: partner2.id,
-    score: 22, aiSummary: 'Lead perdido. Presupuesto insuficiente. Sin encaje de producto.',
+    score: 22, aiSummary: 'Lead perdido. Presupuesto muy por debajo del mínimo de la promoción. Sin encaje de producto.',
     budgetRange: '150000-180000', interestLevel: 'LOW',
+    buyerType: 'INVESTOR', language: 'de-DE',
+    aiRiskFlags: { flags: [{ type: 'budget', severity: 'high', description: 'Presupuesto muy por debajo del mínimo de la promoción.' }], overallRisk: 'high', requiresManualReview: false },
   });
   await prisma.leadActivity.createMany({ data: [
     { leadId: leadLost.id, activityType: LeadActivityType.STATUS_CHANGE, payload: { previousStatus: 'NEW', newStatus: 'QUALIFIED' } },

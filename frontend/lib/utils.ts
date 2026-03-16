@@ -79,6 +79,21 @@ export const COMMISSION_STATUS_LABELS: Record<string, string> = {
   DISPUTED: 'En disputa',
 };
 
+export const BUYER_TYPE_LABELS: Record<string, string> = {
+  UNKNOWN: 'No especificado',
+  INVESTOR: 'Inversor',
+  END_USER: 'Comprador final',
+  DEVELOPER: 'Promotor',
+  CORPORATE: 'Empresa',
+};
+
+export const COMMISSION_TRIGGER_LABELS: Record<string, string> = {
+  ON_LEAD: 'Por lead',
+  ON_VISIT: 'Por visita',
+  ON_RESERVATION: 'Comisión de reserva',
+  ON_SALE: 'Comisión de venta',
+};
+
 export function getScoreColor(score: number | null): string {
   if (!score) return 'text-gray-400';
   if (score >= 70) return 'text-green-600';

@@ -65,7 +65,7 @@ export function AdminDashboard() {
     <div className="p-8 space-y-8">
       <div>
         <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1">Visión general de la red comercial</p>
+        <p className="text-muted-foreground text-sm mt-1">Red de distribución activa</p>
       </div>
 
       {/* KPI cards */}
@@ -108,7 +108,7 @@ export function AdminDashboard() {
         />
         <KpiCard
           icon={<BarChart2 className="h-5 w-5 text-red-500" />}
-          label="Eventos comisión"
+          label="Comisiones generadas"
           value={overview.commissionEvents}
           bg="bg-red-50"
         />
