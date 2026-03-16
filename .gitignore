@@ -53,3 +53,4 @@ uploads/
 # Backups
 backups/
 *.sql.gz
+.claude/worktrees/
