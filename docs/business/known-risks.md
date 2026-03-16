@@ -1,47 +1,87 @@
-# Riesgos conocidos y mitigaciones
+# Known Risks — Portalon Private Network
 
-Estado actual del proyecto (piloto comercial).
+## P0 - Critical (Must Fix Before Go-Live)
 
----
-
-## Riesgos técnicos
-
-### ALTO
-| Riesgo | Descripción | Mitigación |
-|--------|-------------|-----------|
-| Secret en producción débil | Si JWT_SECRET es corto o predecible, los tokens son vulnerables | Usar `openssl rand -hex 32`, nunca reutilizar el del `.env.example` |
-| Sin backup probado | Backup script existe pero no se ha hecho restore real | Probar restore antes del primer cliente real: `gunzip backup.sql.gz | psql...` |
-| OpenClaw no disponible | Si el modelo IA cae, los leads llegan sin score | Fallback implementado: score=50, sin bloqueo. Monitorizar disponibilidad |
-
-### MEDIO
-| Riesgo | Descripción | Mitigación |
-|--------|-------------|-----------|
-| VPS single point of failure | Sin redundancia, si cae el VPS cae todo | Snapshot diario del VPS. Plan de recuperación < 1h documentado |
-| Sin rate limiting por partner | Un partner puede hacer flood de leads | Throttler global 100 req/min existe. Si necesario, añadir por IP de partner |
-| Refresh tokens no invalidados en logout masivo | Si un token robado sigue activo hasta expiración | Logout individual implementado. Logout de todos los dispositivos: pendiente |
-
-### BAJO
-| Riesgo | Descripción | Mitigación |
-|--------|-------------|-----------|
-| Schema Prisma sin índices extra | Queries lentas con >10k leads | Índices en `email`, `status`, `promotionId` ya presentes en schema |
-| Sin paginación en algunos endpoints admin | findAll de promotions/partners sin paginar | Dataset pequeño en piloto. Añadir si crece |
+None outstanding after this audit. All P0 issues have been resolved:
+- JWT strategy unified user+partner handling: FIXED (already correct)
+- LeadsCRM hardcoded /admin/ route: FIXED
+- Pipeline transition validation: FIXED (added VALID_TRANSITIONS)
+- HTTP exception filter leaking errors: FIXED
 
 ---
 
-## Riesgos de negocio
+## P1 - High (Should Fix in First Sprint)
 
-| Riesgo | Descripción | Mitigación |
-|--------|-------------|-----------|
-| Partner no aprobado intenta operar | Status PENDING rechazado por JwtStrategy | Comportamiento correcto. Mensaje de error claro al partner |
-| Comisión duplicada | Reintento de webhook o doble clic | Deduplicación por `(leadId, triggerType)` implementada |
-| Lead sin atribución recibe comisión | Lead creado sin `referralCode` ni `partnerId` | `processLeadEvent` retorna si no hay `partnerId` |
+### AI Scoring is Fire-and-Forget with No Retry
+If the AI service fails on first attempt, the lead remains unscored (score: null).
+There is no retry queue or scheduled re-scoring job.
+**Risk**: Agents may see many unscored leads if AI server is intermittent.
+**Mitigation**: Expose the manual "Re-score with AI" button prominently in the UI. Consider adding a cron job to score all leads with null score.
+
+### No Email Notifications
+Partners receive no email when their lead changes status or when a commission is created.
+**Risk**: Partners don't realize their commission was generated until they log in.
+**Mitigation**: Add email notification service (transactional email via Resend/SendGrid) in v2.
+
+### Refresh Token Not Implemented for Partners
+Partners receive only an accessToken (15m TTL) from /partners/login. There is no refresh token flow for partners.
+**Risk**: Partners are logged out every 15 minutes and must re-authenticate.
+**Mitigation**: Implement refresh token for partners (similar to user auth flow) before commercial launch.
+
+### No File Upload for Partner Documents
+Partners cannot upload identity documents or signed agreements.
+**Risk**: Document collection must happen off-platform (email).
+**Mitigation**: Add file upload endpoint in v2 (infrastructure for uploads volume already exists).
 
 ---
 
-## Deuda técnica conocida
+## P2 - Medium (Backlog)
 
-1. **Sin tests de integración e2e completos** — `test/e2e/app.e2e-spec.ts` básico. Ampliar antes de escalar.
-2. **Uploads de assets no implementados** — endpoint pendiente en promotions. Usar CDN externo por ahora.
-3. **Sin emails transaccionales** — no se notifica al partner cuando su lead avanza. Añadir en siguiente iteración.
-4. **Sin 2FA** — usuarios admin sin segundo factor. Mitigación: contraseñas fuertes + acceso SSH solo por clave.
-5. **Swagger deshabilitado en producción** — correcto por seguridad, pero dificulta testing manual en VPS.
+### Audit Log Has No UI
+AuditLog records are created but there is no admin UI to view them.
+**Risk**: Admin cannot easily investigate disputes or suspicious activity.
+**Mitigation**: Add AuditLog viewer in admin portal.
+
+### No Pagination in Partner's Lead List
+Partners with large lead counts may see performance degradation.
+**Risk**: Performance issue at scale (>500 leads per partner).
+**Mitigation**: Pagination is already implemented in the API. Verify the frontend uses it correctly.
+
+### Commission Calculation Ignores Promotional Discounts
+If a unit is sold at a discount (lower than listed price), the commission is calculated on the listed price.
+**Risk**: Commission overpayment if discounts are applied.
+**Mitigation**: Add actualSalePrice field to Lead model; use it in commission calculation when present.
+
+### No 2FA for Admin Users
+Administrators authenticate with password only.
+**Risk**: Account takeover via credential stuffing.
+**Mitigation**: Add TOTP (Google Authenticator) for SUPER_ADMIN and PROMOTION_MANAGER roles.
+
+### Single Promotion in Seed
+The demo data only includes one promotion (El Portalón del Brillante).
+**Risk**: Multi-promotion features may be undertested.
+**Mitigation**: Add a second promotion in seed data for multi-promotion demo capability.
+
+---
+
+## Known Limitations (By Design)
+
+### Self-Hosted AI Only
+The AI system requires a local Ollama installation. Cloud AI APIs (OpenAI, Anthropic) are not supported.
+**Impact**: Clients without a GPU server will get default scores only.
+**Workaround**: Provide cloud Ollama instance, or add OpenAI provider option.
+
+### Spanish-Language First
+The platform is fully in Spanish. No i18n framework is implemented.
+**Impact**: International clients (UK, Germany) need a localized version.
+**Timeline**: English version is the first i18n priority.
+
+### No Mobile App
+The partner portal is web-responsive but there is no native mobile app.
+**Impact**: Partners using mobile primarily get a PWA-quality experience.
+**Mitigation**: The Next.js app is responsive. Add PWA manifest for install capability.
+
+### Commission Payout is Manual
+The platform calculates and tracks commissions but does not initiate bank transfers.
+**Impact**: Accounts team must manually process transfers using the approved commission list.
+**Future**: Banking API integration (Stripe Connect, GoCardless) for automated payouts.
