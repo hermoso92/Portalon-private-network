@@ -123,6 +123,53 @@ enum CommissionStatus {
   DISPUTED
 }
 
+enum OperationMode {
+  SALE
+  SHORT_STAY
+  MID_TERM
+  LONG_TERM
+}
+
+enum AssetStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+  MAINTENANCE
+  OFF_MARKET
+}
+
+enum OwnerType {
+  INDIVIDUAL
+  COMPANY
+}
+
+enum OperatorAssignmentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AvailabilityBlockReason {
+  BLOCKED
+  MAINTENANCE
+  RESERVED
+  OCCUPIED
+}
+
+enum PriceUnit {
+  TOTAL
+  PER_NIGHT
+  PER_MONTH
+  PER_YEAR
+}
+
+enum InquiryType {
+  PURCHASE
+  SHORT_STAY_BOOKING
+  MID_TERM_RENTAL
+  LONG_TERM_RENTAL
+  INFORMATION
+}
+
 // ============================================================
 // MODELS
 // ============================================================
@@ -240,30 +287,42 @@ model PromotionAsset {
 }
 
 model Unit {
-  id               String     @id @default(cuid())
+  id               String         @id @default(cuid())
   promotionId      String
   unitCode         String
   title            String?
   bedrooms         Int?
   bathrooms        Int?
-  interiorM2       Decimal?   @db.Decimal(8, 2)
-  exteriorM2       Decimal?   @db.Decimal(8, 2)
-  parkingIncluded  Boolean    @default(false)
-  jacuzzi          Boolean    @default(false)
-  price            Decimal?   @db.Decimal(12, 2)
-  status           UnitStatus @default(AVAILABLE)
-  featured         Boolean    @default(false)
-  sortOrder        Int        @default(0)
+  interiorM2       Decimal?       @db.Decimal(8, 2)
+  exteriorM2       Decimal?       @db.Decimal(8, 2)
+  parkingIncluded  Boolean        @default(false)
+  jacuzzi          Boolean        @default(false)
+  price            Decimal?       @db.Decimal(12, 2)
+  status           UnitStatus     @default(AVAILABLE)
+  featured         Boolean        @default(false)
+  sortOrder        Int            @default(0)
   metadata         Json?
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
-  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
-  leads     Lead[]
+  // Premium asset fields
+  operationMode    OperationMode? @default(SALE)
+  assetStatus      AssetStatus?   @default(AVAILABLE)
+  ownerId          String?
+
+  promotion            Promotion             @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  leads                Lead[]
+  owner                Owner?                @relation(fields: [ownerId], references: [id])
+  operatorAssignments  OperatorAssignment[]
+  availabilityBlocks   AvailabilityBlock[]
+  pricingProfiles      PricingProfile[]
 
   @@unique([promotionId, unitCode])
   @@index([promotionId])
   @@index([status])
+  @@index([ownerId])
+  @@index([operationMode])
+  @@index([assetStatus])
   @@map("units")
 }
 
@@ -408,4 +467,87 @@ model AuditLog {
   @@index([actorPartnerId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ============================================================
+// PREMIUM ASSET OPERATIONS MODELS
+// ============================================================
+
+model Owner {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  phone     String?
+  type      OwnerType
+  taxId     String?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  units Unit[]
+
+  @@index([email])
+  @@index([type])
+  @@map("owners")
+}
+
+model OperatorAssignment {
+  id             String                   @id @default(cuid())
+  unitId         String
+  operatorName   String
+  operatorEmail  String
+  operatorPhone  String?
+  startDate      DateTime
+  endDate        DateTime?
+  commissionRate Decimal                  @db.Decimal(5, 4)
+  notes          String?
+  status         OperatorAssignmentStatus @default(ACTIVE)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  unit Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId])
+  @@index([status])
+  @@index([operatorEmail])
+  @@map("operator_assignments")
+}
+
+model AvailabilityBlock {
+  id        String                  @id @default(cuid())
+  unitId    String
+  startDate DateTime
+  endDate   DateTime
+  reason    AvailabilityBlockReason
+  notes     String?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  unit Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId])
+  @@index([startDate, endDate])
+  @@map("availability_blocks")
+}
+
+model PricingProfile {
+  id            String        @id @default(cuid())
+  unitId        String
+  operationMode OperationMode
+  basePrice     Decimal       @db.Decimal(12, 2)
+  currency      String        @default("EUR")
+  priceUnit     PriceUnit
+  minStay       Int?
+  maxStay       Int?
+  notes         String?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  unit Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId])
+  @@index([operationMode])
+  @@index([isActive])
+  @@map("pricing_profiles")
 }
