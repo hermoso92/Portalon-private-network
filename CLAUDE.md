@@ -146,3 +146,4 @@ docker compose exec backend npx prisma db seed
 | dashboard | `modules/dashboard` | Aggregated KPIs for admin |
 | audit | `modules/audit` | Immutable audit log |
 | health | `common/health` | /health endpoint for Docker healthcheck |
+| premium-assets | `modules/premium-assets` | Multi-mode asset ops: catalog, owners, operators, availability, pricing |
