@@ -15,6 +15,7 @@ import { CommissionsModule } from './modules/commissions/commissions.module';
 import { AiModule } from './modules/ai/ai.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { PremiumAssetsModule } from './modules/premium-assets/premium-assets.module';
 import appConfig from './config/app.config';
 
 @Module({
@@ -48,6 +49,7 @@ import appConfig from './config/app.config';
     AiModule,
     DashboardModule,
     AuditModule,
+    PremiumAssetsModule,
   ],
 })
 export class AppModule {}
