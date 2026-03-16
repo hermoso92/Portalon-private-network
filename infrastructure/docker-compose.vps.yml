@@ -1,0 +1,31 @@
+# ============================================================
+# docker-compose.vps.yml — VPS / Demo Server Overrides
+# ============================================================
+# USO (siempre con -f explícito para no mezclar con override local):
+#
+#   cd infrastructure
+#   docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+#
+# QUÉ HACE:
+#   - Usa el build de producción (JS compilado, más rápido que ts-node)
+#   - Expone puertos 3000 y 3001 directamente al exterior (sin nginx)
+#   - No incluye el docker-compose.override.yml local (dev-only)
+# ============================================================
+
+version: '3.9'
+
+services:
+  backend:
+    # Exponer puerto del API directamente (sin nginx)
+    ports:
+      - "3001:3001"
+
+  frontend:
+    # Exponer puerto del frontend directamente (sin nginx)
+    ports:
+      - "3000:3000"
+
+  # nginx no se usa en modo VPS directo — deshabilitado via profile vacío
+  nginx:
+    profiles:
+      - nginx-ssl
