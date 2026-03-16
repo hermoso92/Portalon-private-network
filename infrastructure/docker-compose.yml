@@ -1,0 +1,150 @@
+version: '3.9'
+
+services:
+  # -------------------------------------------------------
+  # PostgreSQL
+  # -------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: portalon_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-portalon_db}
+      POSTGRES_USER: ${POSTGRES_USER:-portalon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-portalon} -d ${POSTGRES_DB:-portalon_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - portalon_internal
+    # NOT exposed externally - only internal network
+
+  # -------------------------------------------------------
+  # Redis
+  # -------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: portalon_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - portalon_internal
+    # NOT exposed externally - only internal network
+
+  # -------------------------------------------------------
+  # Backend (NestJS)
+  # -------------------------------------------------------
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: portalon_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-portalon}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-portalon_db}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL}
+      OPENCLAW_BASE_URL: ${OPENCLAW_BASE_URL:-http://host.docker.internal:11434}
+      OPENCLAW_MODEL: ${OPENCLAW_MODEL:-llama3.1}
+      OPENCLAW_TIMEOUT: ${OPENCLAW_TIMEOUT:-30000}
+      UPLOADS_DIR: /app/uploads
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - portalon_internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # -------------------------------------------------------
+  # Frontend (Next.js)
+  # -------------------------------------------------------
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_PROMOTION_SLUG: ${NEXT_PUBLIC_PROMOTION_SLUG:-el-portalon-del-brillante}
+    container_name: portalon_frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_PROMOTION_SLUG: ${NEXT_PUBLIC_PROMOTION_SLUG:-el-portalon-del-brillante}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - portalon_internal
+
+  # -------------------------------------------------------
+  # Nginx (reverse proxy + SSL termination)
+  # -------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: portalon_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - portalon_internal
+      - portalon_external
+
+networks:
+  portalon_internal:
+    driver: bridge
+    internal: false
+  portalon_external:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local
+  nginx_logs:
+    driver: local

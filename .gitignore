@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment files - NEVER commit these
+.env
+.env.local
+.env.production
+.env.development
+backend/.env
+frontend/.env.local
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.js.map
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.pid.lock
+
+# Test results
+coverage/
+.nyc_output
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (local dev)
+postgres_data/
+redis_data/
+uploads/
+
+# Prisma - don't ignore generated client
+!backend/node_modules/.prisma/
+
+# Backups
+backups/
+*.sql.gz
