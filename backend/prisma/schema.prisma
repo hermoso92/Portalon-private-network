@@ -230,6 +230,7 @@ model Partner {
   attributions       Attribution[]
   commissionEvents   CommissionEvent[]
   auditLogs          AuditLog[]      @relation("ActorPartner")
+  refreshTokens      PartnerRefreshToken[]
 
   @@index([referralCode])
   @@index([status])
@@ -368,6 +369,10 @@ model Lead {
   @@index([buyerType])
   @@index([country])
   @@index([assignedToUserId])
+  @@index([email])
+  @@index([promotionId, status])
+  @@index([partnerId, status])
+  @@index([partnerId, createdAt])
   @@map("leads")
 }
 
@@ -441,10 +446,12 @@ model CommissionEvent {
   lead      Lead      @relation(fields: [leadId], references: [id])
   partner   Partner   @relation(fields: [partnerId], references: [id])
 
+  @@unique([leadId, triggerType])
   @@index([partnerId])
   @@index([promotionId])
   @@index([status])
   @@index([leadId])
+  @@index([partnerId, status])
   @@map("commission_events")
 }
 
@@ -467,6 +474,20 @@ model AuditLog {
   @@index([actorPartnerId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model PartnerRefreshToken {
+  id        String   @id @default(cuid())
+  partnerId String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([partnerId])
+  @@map("partner_refresh_tokens")
 }
 
 // ============================================================

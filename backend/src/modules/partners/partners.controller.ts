@@ -11,10 +11,12 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { PartnersService } from './partners.service';
 import { RegisterPartnerDto } from './dto/register-partner.dto';
 import { UpdatePartnerDto, UpdatePartnerStatusDto } from './dto/update-partner.dto';
+import { PartnerRefreshTokenDto } from './dto/partner-refresh-token.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -39,9 +41,26 @@ export class PartnersController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Login de partner' })
   login(@Body() dto: LoginDto) {
     return this.partnersService.login(dto.email, dto.password);
+  }
+
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Renovar access token de partner' })
+  refresh(@Body() dto: PartnerRefreshTokenDto) {
+    return this.partnersService.refresh(dto.refreshToken);
+  }
+
+  @Public()
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cerrar sesión de partner' })
+  logout(@Body() dto: PartnerRefreshTokenDto) {
+    return this.partnersService.logout(dto.refreshToken);
   }
 
   @Get('me')

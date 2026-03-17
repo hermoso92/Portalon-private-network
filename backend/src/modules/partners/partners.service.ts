@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -97,12 +98,7 @@ export class PartnersService {
     const valid = await bcrypt.compare(password, partner.passwordHash);
     if (!valid) throw new UnauthorizedException('Credenciales incorrectas');
 
-    const payload = { sub: partner.id, email: partner.email, role: 'PARTNER', type: 'partner' };
-
-    const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN', '15m'),
-    });
+    const tokens = await this.generatePartnerTokens(partner.id, partner.email);
 
     return {
       partner: {
@@ -112,8 +108,79 @@ export class PartnersService {
         company: partner.company,
         referralCode: partner.referralCode,
       },
-      accessToken,
+      ...tokens,
     };
+  }
+
+  async refresh(refreshToken: string) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido o expirado');
+    }
+
+    const stored = await this.prisma.partnerRefreshToken.findUnique({
+      where: { token: refreshToken },
+      include: { partner: true },
+    });
+
+    if (!stored || stored.expiresAt < new Date() || stored.partner.status !== 'APPROVED') {
+      throw new UnauthorizedException('Refresh token inválido o expirado');
+    }
+
+    // Rotate token
+    await this.prisma.partnerRefreshToken.delete({ where: { id: stored.id } });
+
+    const tokens = await this.generatePartnerTokens(stored.partner.id, stored.partner.email);
+
+    return {
+      partner: {
+        id: stored.partner.id,
+        name: stored.partner.name,
+        email: stored.partner.email,
+        company: stored.partner.company,
+        referralCode: stored.partner.referralCode,
+      },
+      ...tokens,
+    };
+  }
+
+  async logout(refreshToken: string) {
+    await this.prisma.partnerRefreshToken.deleteMany({
+      where: { token: refreshToken },
+    });
+    return { success: true };
+  }
+
+  private async generatePartnerTokens(partnerId: string, email: string) {
+    const payload = { sub: partnerId, email, role: 'PARTNER', type: 'partner' };
+
+    const accessToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN', '15m'),
+    });
+
+    const refreshTokenValue = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d'),
+    });
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await this.prisma.partnerRefreshToken.create({
+      data: { partnerId, token: refreshTokenValue, expiresAt },
+    });
+
+    // Clean expired tokens for this partner
+    await this.prisma.partnerRefreshToken.deleteMany({
+      where: { partnerId, expiresAt: { lt: new Date() } },
+    });
+
+    return { accessToken, refreshToken: refreshTokenValue };
   }
 
   async findAll(filter: { status?: string } = {}) {

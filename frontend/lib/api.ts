@@ -42,7 +42,14 @@ function createApiClient(): AxiosInstance {
         }
 
         try {
-          const response = await axios.post(`${API_URL}/auth/refresh`, {
+          // Determine refresh endpoint: partners use /partners/refresh
+          const authState = localStorage.getItem('portalon-auth');
+          const isPartner = authState
+            ? JSON.parse(authState)?.state?.user?.role === 'PARTNER'
+            : false;
+          const refreshEndpoint = isPartner ? '/partners/refresh' : '/auth/refresh';
+
+          const response = await axios.post(`${API_URL}${refreshEndpoint}`, {
             refreshToken,
           });
 

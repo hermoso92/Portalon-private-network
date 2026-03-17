@@ -18,6 +18,9 @@ const schema = z.object({
   country: z.string().optional(),
   budgetRange: z.string().optional(),
   notes: z.string().optional(),
+  privacyConsent: z.boolean().refine(v => v === true, {
+    message: 'Debes aceptar la política de privacidad para continuar',
+  }),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -120,6 +123,32 @@ export function LeadForm({ promotionId, referralCode, utmSource, utmMedium, utmC
         />
       </div>
 
+      <div className="flex items-start space-x-3">
+        <input
+          type="checkbox"
+          id="privacyConsent"
+          {...register('privacyConsent')}
+          className="mt-0.5 h-4 w-4 rounded border-input accent-portalon-gold cursor-pointer"
+        />
+        <div className="space-y-1">
+          <label htmlFor="privacyConsent" className="text-sm cursor-pointer leading-snug">
+            He leído y acepto la{' '}
+            <a
+              href="/politica-privacidad"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-portalon-gold hover:opacity-80"
+            >
+              política de privacidad
+            </a>
+            {' '}y el tratamiento de mis datos personales con el fin de gestionar mi solicitud. *
+          </label>
+          {errors.privacyConsent && (
+            <p className="text-xs text-destructive">{errors.privacyConsent.message}</p>
+          )}
+        </div>
+      </div>
+
       {error && (
         <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3">
           <p className="text-sm text-destructive">{error}</p>
@@ -142,7 +171,7 @@ export function LeadForm({ promotionId, referralCode, utmSource, utmMedium, utmC
       </Button>
 
       <p className="text-xs text-center text-muted-foreground">
-        Tus datos están protegidos y no serán compartidos con terceros.
+        Tus datos están protegidos conforme al RGPD. No serán compartidos con terceros sin tu consentimiento.
       </p>
     </form>
   );

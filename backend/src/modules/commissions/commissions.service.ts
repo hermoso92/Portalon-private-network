@@ -42,13 +42,7 @@ export class CommissionsService {
       ? CommissionTriggerType.ON_RESERVATION
       : CommissionTriggerType.ON_SALE;
 
-    // Check if already processed
-    const existing = await this.prisma.commissionEvent.findFirst({
-      where: { leadId, triggerType },
-    });
-    if (existing) return;
-
-    // Find applicable rules
+    // Find applicable rules before creating (no race condition here — read-only)
     const rules = await this.prisma.commissionRule.findMany({
       where: {
         promotionId: lead.promotionId,
@@ -69,8 +63,13 @@ export class CommissionsService {
       commissionAmount = Number(rule.amount);
     }
 
-    await this.prisma.commissionEvent.create({
-      data: {
+    // Atomic upsert: create if not exists, no-op if already exists.
+    // The @@unique([leadId, triggerType]) constraint guarantees exactly-once
+    // execution even under concurrent requests (no race condition possible).
+    await this.prisma.commissionEvent.upsert({
+      where: { leadId_triggerType: { leadId, triggerType } },
+      update: {},
+      create: {
         promotionId: lead.promotionId,
         leadId,
         partnerId,

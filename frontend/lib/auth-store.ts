@@ -62,7 +62,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const res = await api.post('/partners/login', { email, password });
-          const { partner, accessToken } = res.data;
+          const { partner, accessToken, refreshToken } = res.data;
 
           const user: AuthUser = {
             id: partner.id,
@@ -73,12 +73,13 @@ export const useAuthStore = create<AuthState>()(
 
           if (typeof window !== 'undefined') {
             localStorage.setItem('accessToken', accessToken);
+            localStorage.setItem('refreshToken', refreshToken);
           }
 
           set({
             user,
             accessToken,
-            refreshToken: null,
+            refreshToken,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -89,10 +90,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
-        const { refreshToken } = get();
+        const { refreshToken, user } = get();
         try {
           if (refreshToken) {
-            await api.post('/auth/logout', { refreshToken });
+            const endpoint = user?.role === 'PARTNER' ? '/partners/logout' : '/auth/logout';
+            await api.post(endpoint, { refreshToken });
           }
         } catch {}
 
