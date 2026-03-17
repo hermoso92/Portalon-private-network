@@ -85,6 +85,21 @@ curl -s http://localhost:3001/api/v1/health
 
 ---
 
+## [OPCIONAL] Minuto 4b — Segunda promoción activa
+
+*Use este bloque si el cliente pregunta si el sistema puede gestionar varias promociones simultáneas.*
+
+**Ventana A → Dashboard → Promotions**
+
+1. Mostrar **Residencial Mediterráneo** (Valencia) — segunda promoción activa
+2. 6 unidades desde **185.000€** hasta 240.000€
+3. Leads activos: Elena Russo (Italia, QUALIFIED), James Whitfield (Reino Unido, VISIT_SCHEDULED), Nadia Petrov (Rusia, RESERVED — unidad MED-05 bloqueada)
+4. Comisión generada en reserva de Nadia: **€3.075 PENDING**
+
+**Punto clave**: *"Una sola plataforma, varias promociones, cada partner ve sólo lo suyo."*
+
+---
+
 ## Respuestas a preguntas frecuentes
 
 **¿Dónde están los datos?** → En tu servidor. Sin cloud, sin terceros.

@@ -199,21 +199,25 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {recentLeads.map((lead: any) => (
-                <div key={lead.id} className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {lead.firstName} {lead.lastName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{formatRelativeTime(lead.createdAt)}</p>
+              {recentLeads.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin leads recientes todavía</p>
+              ) : (
+                recentLeads.map((lead: any) => (
+                  <div key={lead.id} className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {lead.firstName} {lead.lastName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{formatRelativeTime(lead.createdAt)}</p>
+                    </div>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${LEAD_STATUS_COLORS[lead.status] || ''}`}
+                    >
+                      {LEAD_STATUS_LABELS[lead.status] || lead.status}
+                    </span>
                   </div>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${LEAD_STATUS_COLORS[lead.status] || ''}`}
-                  >
-                    {LEAD_STATUS_LABELS[lead.status] || lead.status}
-                  </span>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

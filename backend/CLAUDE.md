@@ -49,8 +49,11 @@ src/modules/
 - Refresh tokens stored in DB and rotated on each use
 
 ### Partners (external network)
-- Login: `POST /partners/login` → returns `accessToken` (15m) only
+- Login: `POST /partners/login` → returns `{ partner, accessToken (15m), refreshToken (7d) }`
+- Refresh: `POST /partners/refresh` (`@Public()`) → validates `PartnerRefreshToken`, rotates and returns new pair
+- Logout: `POST /partners/logout` (`@Public()`) → deletes `PartnerRefreshToken` record
 - Token payload: `{ sub: partner.id, email, role: 'PARTNER', type: 'partner' }`
+- Refresh tokens stored in `partner_refresh_tokens` table (isolated from user `refresh_tokens`)
 - Partners must be `status: APPROVED` to log in
 
 ### JwtStrategy (unified)
@@ -86,7 +89,7 @@ Invalid transitions return `HTTP 400 BadRequestException`.
 3. If `RESERVED` or `WON`: fires `commissionsService.processLeadEvent()` async (fire-and-forget)
 
 ### Commission Deduplication
-`processLeadEvent()` checks `prisma.commissionEvent.findFirst({ where: { leadId, triggerType } })` before creating - prevents duplicate commissions if status is set multiple times.
+`processLeadEvent()` uses an atomic `prisma.commissionEvent.upsert({ where: { leadId_triggerType: { leadId, triggerType } }, update: {}, create: {...} })` — exactly-once semantics backed by DB `@@unique([leadId, triggerType])` constraint. The previous `findFirst() + create()` pattern had a race condition under concurrent requests.
 
 ---
 

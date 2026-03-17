@@ -9,7 +9,7 @@ import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { ChangeLeadStatusDto } from './dto/change-status.dto';
 import { FilterLeadsDto } from './dto/filter-leads.dto';
-import { LeadSourceType, LeadActivityType, LeadStatus } from '@prisma/client';
+import { LeadSourceType, LeadActivityType, LeadStatus, UnitStatus, AssetStatus } from '@prisma/client';
 
 /**
  * Valid pipeline transitions. Terminal states (WON, LOST) cannot be re-opened.
@@ -272,10 +272,44 @@ export class LeadsService {
       );
     }
 
+    // Unit inventory: validate availability before reservation
+    if (targetStatus === LeadStatus.RESERVED && lead.unitId && lead.unit) {
+      if (lead.unit.status !== UnitStatus.AVAILABLE) {
+        throw new BadRequestException(
+          `La unidad ${lead.unit.unitCode} no está disponible (estado actual: ${lead.unit.status}). ` +
+          `Verifica que no haya otra reserva activa para esta unidad.`,
+        );
+      }
+    }
+
     const updated = await this.prisma.lead.update({
       where: { id },
       data: { status: dto.status },
     });
+
+    // Sync unit inventory status to match lead pipeline state
+    if (lead.unitId) {
+      if (targetStatus === LeadStatus.RESERVED) {
+        await this.prisma.unit.update({
+          where: { id: lead.unitId },
+          data: { status: UnitStatus.RESERVED, assetStatus: AssetStatus.RESERVED },
+        });
+      } else if (targetStatus === LeadStatus.WON) {
+        await this.prisma.unit.update({
+          where: { id: lead.unitId },
+          data: { status: UnitStatus.SOLD, assetStatus: AssetStatus.OFF_MARKET },
+        });
+      } else if (
+        currentStatus === LeadStatus.RESERVED &&
+        (targetStatus === LeadStatus.VISITED || targetStatus === LeadStatus.LOST)
+      ) {
+        // Lead leaving reservation — release the unit back to available
+        await this.prisma.unit.update({
+          where: { id: lead.unitId },
+          data: { status: UnitStatus.AVAILABLE, assetStatus: AssetStatus.AVAILABLE },
+        });
+      }
+    }
 
     await this.prisma.leadActivity.create({
       data: {

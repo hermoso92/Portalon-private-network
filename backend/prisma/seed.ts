@@ -727,6 +727,188 @@ un activo seguro, rentable y con alto valor patrimonial.`,
     console.log('Premium leads created: buyer (IT), renter (FR), investor portfolio (DE)');
   }
 
+  // -------------------------------------------------------
+  // Second promotion — Residencial Mediterráneo (Valencia)
+  // Adds multi-promotion demo capability for the admin dashboard
+  // -------------------------------------------------------
+  const promotion2 = await prisma.promotion.upsert({
+    where: { slug: 'residencial-mediterraneo-valencia' },
+    update: { totalUnits: 6, unitsAvailable: 4 },
+    create: {
+      slug: 'residencial-mediterraneo-valencia',
+      name: 'Residencial Mediterráneo',
+      headline: 'Apartamentos de lujo con vistas al mar en el corazón del barrio del Carmen',
+      shortDescription: 'Una exclusiva colección de 6 apartamentos premium en Valencia. Diseño contemporáneo, acabados de primera calidad y alta rentabilidad en uno de los mercados más dinámicos de España.',
+      fullDescription: `Residencial Mediterráneo es una promoción de apartamentos premium en el barrio del Carmen de Valencia, a 5 minutos a pie de la playa y del puerto deportivo.
+
+Cada unidad ofrece terrazas con vistas al Mediterráneo, acabados de primera calidad y domótica integrada. Ideal para inversores que buscan rentabilidad vacacional o residencia habitual en una de las ciudades con mayor crecimiento de España.`,
+      location: 'Barrio del Carmen, Valencia',
+      address: 'Calle del Carmen, 42',
+      city: 'Valencia',
+      country: 'ES',
+      currency: 'EUR',
+      publicStatus: 'PUBLISHED',
+      priceMin: 185000,
+      priceMax: 240000,
+      totalUnits: 6,
+      unitsAvailable: 4,
+      heroImageUrl: null,
+    },
+  });
+  console.log('Second promotion created:', promotion2.slug);
+
+  // Commission rules for promotion2
+  await prisma.commissionRule.upsert({
+    where: { id: `cr-p2-reservation` },
+    update: {},
+    create: {
+      id: `cr-p2-reservation`,
+      promotionId: promotion2.id,
+      triggerType: CommissionTriggerType.ON_RESERVATION,
+      calculationType: 'PERCENTAGE_OF_SALE',
+      amount: 1.5,
+      isActive: true,
+    },
+  });
+  await prisma.commissionRule.upsert({
+    where: { id: `cr-p2-sale` },
+    update: {},
+    create: {
+      id: `cr-p2-sale`,
+      promotionId: promotion2.id,
+      triggerType: CommissionTriggerType.ON_SALE,
+      calculationType: 'PERCENTAGE_OF_SALE',
+      amount: 3,
+      isActive: true,
+    },
+  });
+
+  // Units for promotion2
+  const unitsP2 = [
+    { unitCode: 'MED-01', title: 'Apartamento Ático — Terraza 40m²', bedrooms: 2, bathrooms: 2, interiorM2: 85, exteriorM2: 40, price: 240000, featured: true, status: 'AVAILABLE' as any },
+    { unitCode: 'MED-02', title: 'Apartamento Planta 3 — Vistas al Mar', bedrooms: 2, bathrooms: 1, interiorM2: 72, exteriorM2: 12, price: 215000, featured: true, status: 'AVAILABLE' as any },
+    { unitCode: 'MED-03', title: 'Apartamento Planta 2 — Orientación Sur', bedrooms: 1, bathrooms: 1, interiorM2: 58, exteriorM2: 8, price: 185000, featured: false, status: 'AVAILABLE' as any },
+    { unitCode: 'MED-04', title: 'Apartamento Planta 2 — Interior', bedrooms: 1, bathrooms: 1, interiorM2: 55, exteriorM2: 0, price: 185000, featured: false, status: 'AVAILABLE' as any },
+    { unitCode: 'MED-05', title: 'Apartamento Planta 1 — Jardín Comunitario', bedrooms: 2, bathrooms: 1, interiorM2: 68, exteriorM2: 20, price: 205000, featured: false, status: 'RESERVED' as any },
+    { unitCode: 'MED-06', title: 'Local Comercial — Planta Baja', bedrooms: 0, bathrooms: 1, interiorM2: 95, exteriorM2: 0, price: 195000, featured: false, status: 'AVAILABLE' as any },
+  ];
+
+  const createdUnitsP2: Record<string, string> = {};
+  for (const u of unitsP2) {
+    const unit = await prisma.unit.upsert({
+      where: { promotionId_unitCode: { promotionId: promotion2.id, unitCode: u.unitCode } },
+      update: {},
+      create: { ...u, promotionId: promotion2.id, operationMode: OperationMode.SALE, assetStatus: u.status === 'RESERVED' ? AssetStatus.RESERVED : AssetStatus.AVAILABLE },
+    });
+    createdUnitsP2[u.unitCode] = unit.id;
+  }
+  console.log('Units for Residencial Mediterráneo created');
+
+  // Demo leads for promotion2
+  const p2Lead1 = await prisma.lead.upsert({
+    where: { id: 'p2-lead-elena-russo' },
+    update: {},
+    create: {
+      id: 'p2-lead-elena-russo',
+      promotionId: promotion2.id,
+      unitId: createdUnitsP2['MED-02'],
+      partnerId: partner1.id,
+      sourceType: LeadSourceType.PARTNER_REFERRAL,
+      firstName: 'Elena',
+      lastName: 'Russo',
+      email: 'e.russo@finanzaItalia.com',
+      phone: '+39 02 9876543',
+      country: 'IT',
+      status: LeadStatus.QUALIFIED,
+      score: 82,
+      buyerType: 'INVESTOR' as any,
+      budgetRange: '200000-250000',
+      language: 'it-IT',
+      notes: 'Inversora italiana. Busca apartamento para alquiler vacacional en Valencia. Horizonte 5 años.',
+      aiSummary: 'Perfil inversor sólido. Mercado objetivo (Valencia) alineado con su estrategia. Presupuesto ajustado pero viable con MED-02.',
+    },
+  });
+  await prisma.attribution.upsert({
+    where: { leadId: p2Lead1.id },
+    update: {},
+    create: { leadId: p2Lead1.id, partnerId: partner1.id, sourceChannel: 'referral_link', utmSource: 'linkedin' },
+  });
+
+  const p2Lead2 = await prisma.lead.upsert({
+    where: { id: 'p2-lead-james-whitfield' },
+    update: {},
+    create: {
+      id: 'p2-lead-james-whitfield',
+      promotionId: promotion2.id,
+      unitId: createdUnitsP2['MED-01'],
+      partnerId: partner2.id,
+      sourceType: LeadSourceType.PARTNER_REFERRAL,
+      firstName: 'James',
+      lastName: 'Whitfield',
+      email: 'j.whitfield@londonwealth.co.uk',
+      phone: '+44 20 71234567',
+      country: 'GB',
+      status: LeadStatus.VISIT_SCHEDULED,
+      score: 91,
+      buyerType: 'INVESTOR' as any,
+      budgetRange: '220000-260000',
+      language: 'en-GB',
+      notes: 'Gestor de patrimonios londinense. Conoce bien el mercado español. Muy interesado en el ático.',
+      aiSummary: 'Lead de alta calidad. Perfil patrimonial alto. Visita confirmada para el ático MED-01. Propuesta de alquiler vacacional bien estructurada. Alta probabilidad de cierre.',
+    },
+  });
+  await prisma.attribution.upsert({
+    where: { leadId: p2Lead2.id },
+    update: {},
+    create: { leadId: p2Lead2.id, partnerId: partner2.id, sourceChannel: 'referral_link', utmSource: 'email_campaign' },
+  });
+
+  const p2Lead3 = await prisma.lead.upsert({
+    where: { id: 'p2-lead-nadia-petrov' },
+    update: {},
+    create: {
+      id: 'p2-lead-nadia-petrov',
+      promotionId: promotion2.id,
+      unitId: createdUnitsP2['MED-05'],
+      partnerId: partner1.id,
+      sourceType: LeadSourceType.PARTNER_REFERRAL,
+      firstName: 'Nadia',
+      lastName: 'Petrov',
+      email: 'n.petrov@example.com',
+      phone: '+7 495 1234567',
+      country: 'RU',
+      status: LeadStatus.RESERVED,
+      score: 77,
+      buyerType: 'END_USER' as any,
+      budgetRange: '190000-210000',
+      language: 'ru-RU',
+      notes: 'Reside en Madrid. Busca segunda residencia en Valencia para uso personal. MED-05 reservado.',
+      aiSummary: 'Compradora final. No perfil inversor. Motivación emocional fuerte (familia en Valencia). Financiación pre-aprobada. Reserva en curso.',
+    },
+  });
+  await prisma.attribution.upsert({
+    where: { leadId: p2Lead3.id },
+    update: {},
+    create: { leadId: p2Lead3.id, partnerId: partner1.id, sourceChannel: 'referral_link' },
+  });
+  // Commission event for p2Lead3 (RESERVED)
+  await prisma.commissionEvent.upsert({
+    where: { leadId_triggerType: { leadId: p2Lead3.id, triggerType: CommissionTriggerType.ON_RESERVATION } },
+    update: {},
+    create: {
+      promotionId: promotion2.id,
+      leadId: p2Lead3.id,
+      partnerId: partner1.id,
+      triggerType: CommissionTriggerType.ON_RESERVATION,
+      baseAmount: 205000,
+      commissionAmount: 3075,
+      status: CommissionStatus.PENDING,
+      notes: 'Auto-generado por cambio de estado a RESERVED',
+    },
+  });
+
+  console.log('Second promotion leads and commissions created');
+
   printSummary();
 }
 

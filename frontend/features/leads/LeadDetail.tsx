@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Brain, RefreshCw, User, MapPin, Phone, Mail, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Brain, RefreshCw, User, MapPin, Phone, Mail, AlertTriangle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -323,13 +323,21 @@ export function LeadDetail({ leadId }: Props) {
               </div>
 
               <div>
-                <p className="text-xs text-muted-foreground mb-2">Cambiar estado</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-muted-foreground">Cambiar estado</p>
+                  {changingStatus && (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Guardando...
+                    </span>
+                  )}
+                </div>
                 <Select
                   value={lead.status}
                   onValueChange={handleStatusChange}
                   disabled={changingStatus}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={changingStatus ? 'opacity-60' : ''}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

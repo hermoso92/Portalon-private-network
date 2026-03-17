@@ -2,11 +2,14 @@
 
 ## P0 - Critical (Must Fix Before Go-Live)
 
-None outstanding after this audit. All P0 issues have been resolved:
-- JWT strategy unified user+partner handling: FIXED (already correct)
+None outstanding. All P0 issues resolved:
+- JWT strategy unified user+partner handling: FIXED
 - LeadsCRM hardcoded /admin/ route: FIXED
-- Pipeline transition validation: FIXED (added VALID_TRANSITIONS)
+- Pipeline transition validation: FIXED (added VALID_TRANSITIONS map)
 - HTTP exception filter leaking errors: FIXED
+- Commission race condition (findFirst+create): FIXED — replaced with atomic `upsert()` + DB `@@unique([leadId, triggerType])`
+- Unit inventory not synced on status change: FIXED — RESERVED/WON/release sync in `leads.service.changeStatus()`
+- Partner session expiry every 15 min: FIXED — full refresh token flow for partners
 
 ---
 
@@ -23,10 +26,8 @@ Partners receive no email when their lead changes status or when a commission is
 **Risk**: Partners don't realize their commission was generated until they log in.
 **Mitigation**: Add email notification service (transactional email via Resend/SendGrid) in v2.
 
-### Refresh Token Not Implemented for Partners
-Partners receive only an accessToken (15m TTL) from /partners/login. There is no refresh token flow for partners.
-**Risk**: Partners are logged out every 15 minutes and must re-authenticate.
-**Mitigation**: Implement refresh token for partners (similar to user auth flow) before commercial launch.
+### ~~Refresh Token Not Implemented for Partners~~ — FIXED (2026-03-17)
+`POST /partners/refresh` and `POST /partners/logout` implemented. `PartnerRefreshToken` model added to schema with isolated table `partner_refresh_tokens`. Frontend interceptor auto-routes to correct refresh endpoint based on role. Partners now have the same 7-day sliding session as staff users.
 
 ### No File Upload for Partner Documents
 Partners cannot upload identity documents or signed agreements.
@@ -57,10 +58,8 @@ Administrators authenticate with password only.
 **Risk**: Account takeover via credential stuffing.
 **Mitigation**: Add TOTP (Google Authenticator) for SUPER_ADMIN and PROMOTION_MANAGER roles.
 
-### Single Promotion in Seed
-The demo data only includes one promotion (El Portalón del Brillante).
-**Risk**: Multi-promotion features may be undertested.
-**Mitigation**: Add a second promotion in seed data for multi-promotion demo capability.
+### ~~Single Promotion in Seed~~ — FIXED (2026-03-17)
+Second promotion "Residencial Mediterráneo" (Valencia) added to seed: 6 units (€185K–€240K), commission rules, and 3 demo leads (Elena Russo IT/QUALIFIED, James Whitfield GB/VISIT_SCHEDULED, Nadia Petrov RU/RESERVED with €3,075 commission event).
 
 ---
 

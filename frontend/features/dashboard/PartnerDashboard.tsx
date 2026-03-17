@@ -159,7 +159,9 @@ export function PartnerDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {promotions.map((promo: any) => (
+              {promotions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin promociones publicadas actualmente</p>
+              ) : promotions.map((promo: any) => (
                 <div key={promo.id} className="border rounded-lg p-4">
                   <div className="flex items-start justify-between">
                     <div>
