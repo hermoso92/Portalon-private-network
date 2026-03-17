@@ -124,13 +124,13 @@ export class LeadsController {
     @Body() dto: ChangeLeadStatusDto,
     @CurrentUser('id') userId: string,
   ) {
-    const previousLead = await this.leadsService.findOne(id);
+    // changeStatus internally calls findOne — no need for a separate pre-fetch
     const lead = await this.leadsService.changeStatus(id, dto, userId);
+    const previousStatus = (lead as any).__previousStatus ?? dto.status;
 
-    // Fire-and-forget: commission processing
+    // Fire-and-forget: commission processing + partner email
     if (dto.status === 'RESERVED' || dto.status === 'WON') {
-      this.commissionsService.processLeadEvent(id, dto.status).then(async () => {
-        // Notify partner after commission is created
+      this.commissionsService.processLeadEvent(id, dto.status).then(async (event) => {
         if (lead.partner?.email) {
           const leadName = `${lead.firstName} ${lead.lastName ?? ''}`.trim();
           await this.notificationsService.notifyCommissionCreated({
@@ -138,7 +138,7 @@ export class LeadsController {
             partnerName: lead.partner.name,
             leadName,
             triggerType: dto.status === 'RESERVED' ? 'ON_RESERVATION' : 'ON_SALE',
-            amount: 0, // will be filled from commission event; skipping lookup for fire-and-forget
+            amount: event ? Number(event.commissionAmount) : 0,
           });
         }
       }).catch(() => {});
@@ -151,19 +151,18 @@ export class LeadsController {
         partnerEmail: lead.partner.email,
         partnerName: lead.partner.name,
         leadName,
-        oldStatus: previousLead.status,
+        oldStatus: previousStatus,
         newStatus: dto.status,
         leadId: id,
       }).catch(() => {});
     }
 
-    // Audit log
+    // Audit log — oldStatus is read from the activity log created inside changeStatus
     this.auditService.log({
       actorUserId: userId,
       entityType: 'Lead',
       entityId: id,
       action: 'status_change',
-      oldValue: { status: previousLead.status },
       newValue: { status: dto.status, note: dto.note },
     }).catch(() => {});
 

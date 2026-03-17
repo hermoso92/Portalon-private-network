@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCommissionRuleDto } from './dto/create-commission-rule.dto';
 import { CommissionTriggerType, CommissionStatus } from '@prisma/client';
 
 @Injectable()
 export class CommissionsService {
+  private readonly logger = new Logger(CommissionsService.name);
   constructor(private prisma: PrismaService) {}
 
   // -------------------------------------------------------
@@ -66,7 +67,7 @@ export class CommissionsService {
     // Atomic upsert: create if not exists, no-op if already exists.
     // The @@unique([leadId, triggerType]) constraint guarantees exactly-once
     // execution even under concurrent requests (no race condition possible).
-    await this.prisma.commissionEvent.upsert({
+    const event = await this.prisma.commissionEvent.upsert({
       where: { leadId_triggerType: { leadId, triggerType } },
       update: {},
       create: {
@@ -80,6 +81,8 @@ export class CommissionsService {
         notes: `Auto-generado por cambio de estado a ${status}`,
       },
     });
+
+    return event;
   }
 
   async findAll(filter: {
@@ -172,11 +175,13 @@ export class CommissionsService {
       try {
         await this.processLeadEvent(lead.id, lead.status);
         processed++;
-      } catch {
+      } catch (err) {
         errors++;
+        this.logger.error(`recalculateAll failed for lead ${lead.id}: ${err?.message ?? err}`);
       }
     }
 
+    this.logger.log(`recalculateAll complete — total: ${leads.length}, processed: ${processed}, errors: ${errors}`);
     return { total: leads.length, processed, errors };
   }
 

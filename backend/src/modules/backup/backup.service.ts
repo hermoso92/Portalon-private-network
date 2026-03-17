@@ -27,7 +27,9 @@ export class BackupService {
       return { success: true, message: 'Skipped (non-production)' };
     }
 
-    const scriptPath = path.resolve('/opt/portalon/infrastructure/scripts/backup_postgres.sh');
+    const scriptPath = path.resolve(
+      this.config.get<string>('BACKUP_SCRIPT_PATH', '/opt/portalon/infrastructure/scripts/backup_postgres.sh'),
+    );
 
     this.logger.log('Starting scheduled database backup...');
     try {

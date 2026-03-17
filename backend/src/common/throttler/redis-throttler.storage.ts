@@ -1,17 +1,19 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerStorage } from '@nestjs/throttler';
 import Redis from 'ioredis';
 
 /**
  * Redis-backed throttler storage for @nestjs/throttler v5.
- * Falls back to in-memory Map if Redis is unavailable, so the API stays up.
+ * Falls back to in-memory Map if Redis is unavailable.
+ * Fallback Map is pruned every 5 minutes to prevent memory leaks.
  */
 @Injectable()
-export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy {
+export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisThrottlerStorage.name);
   private redis: Redis | null = null;
   private readonly fallback = new Map<string, { hits: number; expiresAt: number }>();
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private config: ConfigService) {
     const host = this.config.get<string>('REDIS_HOST');
@@ -27,6 +29,16 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy 
         this.logger.warn(`Redis throttler error: ${err.message} — falling back to memory`);
       });
     }
+  }
+
+  onModuleInit() {
+    // Prune expired fallback entries every 5 minutes
+    this.cleanupTimer = setInterval(() => {
+      const now = Date.now();
+      for (const [key, entry] of this.fallback) {
+        if (entry.expiresAt <= now) this.fallback.delete(key);
+      }
+    }, 5 * 60 * 1000);
   }
 
   async increment(key: string, ttl: number): Promise<{ totalHits: number; timeToExpire: number }> {
@@ -68,6 +80,7 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy 
   }
 
   async onModuleDestroy() {
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer);
     if (this.redis) await this.redis.quit();
   }
 }
