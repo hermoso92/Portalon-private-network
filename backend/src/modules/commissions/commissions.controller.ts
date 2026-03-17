@@ -77,6 +77,13 @@ export class CommissionsController {
     return this.commissionsService.recalculate(leadId);
   }
 
+  @Post('recalculate-all')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Recalcular comisiones de TODOS los leads RESERVED/WON (batch)' })
+  recalculateAll() {
+    return this.commissionsService.recalculateAll();
+  }
+
   @Patch(':id/status')
   @Roles(UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Actualizar estado de comisión (aprobar/pagar/cancelar)' })

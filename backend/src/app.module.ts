@@ -4,6 +4,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { HealthModule } from './common/health/health.module';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { PartnersModule } from './modules/partners/partners.module';
@@ -16,6 +17,9 @@ import { AiModule } from './modules/ai/ai.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { PremiumAssetsModule } from './modules/premium-assets/premium-assets.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { VisitsModule } from './modules/visits/visits.module';
+import { BackupModule } from './modules/backup/backup.module';
 import appConfig from './config/app.config';
 
 @Module({
@@ -28,12 +32,16 @@ import appConfig from './config/app.config';
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => [
-        {
-          ttl: config.get<number>('THROTTLE_TTL', 60000),
-          limit: config.get<number>('THROTTLE_LIMIT', 100),
-        },
-      ],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: config.get<number>('THROTTLE_TTL', 60000),
+            limit: config.get<number>('THROTTLE_LIMIT', 100),
+          },
+        ],
+        // Instantiated here so ConfigService is available; lifecycle managed by ioredis
+        storage: new RedisThrottlerStorage(config),
+      }),
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
@@ -50,6 +58,9 @@ import appConfig from './config/app.config';
     DashboardModule,
     AuditModule,
     PremiumAssetsModule,
+    NotificationsModule,
+    VisitsModule,
+    BackupModule,
   ],
 })
 export class AppModule {}

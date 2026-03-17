@@ -170,6 +170,14 @@ enum InquiryType {
   INFORMATION
 }
 
+enum VisitStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
 // ============================================================
 // MODELS
 // ============================================================
@@ -183,6 +191,9 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  totpSecret   String?
+  totpEnabled  Boolean  @default(false)
 
   // Relations
   assignedLeads   Lead[]          @relation("AssignedLeads")
@@ -313,6 +324,7 @@ model Unit {
 
   promotion            Promotion             @relation(fields: [promotionId], references: [id], onDelete: Cascade)
   leads                Lead[]
+  visits               Visit[]
   owner                Owner?                @relation(fields: [ownerId], references: [id])
   operatorAssignments  OperatorAssignment[]
   availabilityBlocks   AvailabilityBlock[]
@@ -360,6 +372,7 @@ model Lead {
   activities       LeadActivity[]
   attribution      Attribution?
   commissionEvents CommissionEvent[]
+  visits           Visit[]
 
   @@index([promotionId])
   @@index([partnerId])
@@ -488,6 +501,26 @@ model PartnerRefreshToken {
   @@index([token])
   @@index([partnerId])
   @@map("partner_refresh_tokens")
+}
+
+model Visit {
+  id          String      @id @default(cuid())
+  leadId      String
+  unitId      String?
+  scheduledAt DateTime
+  status      VisitStatus @default(PENDING)
+  notes       String?
+  confirmedBy String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  lead Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  unit Unit? @relation(fields: [unitId], references: [id])
+
+  @@index([leadId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("visits")
 }
 
 // ============================================================

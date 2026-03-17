@@ -61,12 +61,14 @@ describe('AuthService', () => {
         name: 'Test User',
         role: 'SUPER_ADMIN',
         isActive: true,
+        totpEnabled: false,
+        totpSecret: null,
         passwordHash: hashedPassword,
       });
       mockPrisma.refreshToken.create.mockResolvedValue({});
       mockPrisma.refreshToken.deleteMany.mockResolvedValue({});
 
-      const result = await service.login({ email: 'test@test.com', password: 'password123' });
+      const result = await service.login({ email: 'test@test.com', password: 'password123' }) as any;
 
       expect(result.user.email).toBe('test@test.com');
       expect(result.accessToken).toBe('mock-token');

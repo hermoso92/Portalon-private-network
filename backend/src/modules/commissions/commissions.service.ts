@@ -160,6 +160,26 @@ export class CommissionsService {
     return { message: 'Lead sin estado que active comisión' };
   }
 
+  async recalculateAll() {
+    const leads = await this.prisma.lead.findMany({
+      where: { status: { in: ['RESERVED', 'WON'] }, partnerId: { not: null } },
+      select: { id: true, status: true },
+    });
+
+    let processed = 0;
+    let errors = 0;
+    for (const lead of leads) {
+      try {
+        await this.processLeadEvent(lead.id, lead.status);
+        processed++;
+      } catch {
+        errors++;
+      }
+    }
+
+    return { total: leads.length, processed, errors };
+  }
+
   async getPartnerSummary(partnerId: string) {
     const [total, byStatus] = await Promise.all([
       this.prisma.commissionEvent.aggregate({

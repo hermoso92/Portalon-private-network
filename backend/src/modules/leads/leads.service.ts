@@ -186,7 +186,7 @@ export class LeadsService {
       this.prisma.lead.findMany({
         where,
         include: {
-          partner: { select: { id: true, name: true, company: true, referralCode: true } },
+          partner: { select: { id: true, name: true, email: true, company: true, referralCode: true } },
           assignedTo: { select: { id: true, name: true, email: true } },
           promotion: { select: { id: true, name: true, slug: true } },
           unit: { select: { id: true, unitCode: true, title: true } },
@@ -214,7 +214,7 @@ export class LeadsService {
     const lead = await this.prisma.lead.findUnique({
       where: { id },
       include: {
-        partner: { select: { id: true, name: true, company: true, referralCode: true } },
+        partner: { select: { id: true, name: true, email: true, company: true, referralCode: true } },
         assignedTo: { select: { id: true, name: true, email: true } },
         promotion: { select: { id: true, name: true, slug: true, currency: true } },
         unit: true,
@@ -282,7 +282,7 @@ export class LeadsService {
       }
     }
 
-    const updated = await this.prisma.lead.update({
+    await this.prisma.lead.update({
       where: { id },
       data: { status: dto.status },
     });
@@ -324,7 +324,8 @@ export class LeadsService {
       },
     });
 
-    return updated;
+    // Return full lead with relations (needed by controller for notifications/audit)
+    return this.findOne(id);
   }
 
   async addActivity(leadId: string, type: LeadActivityType, payload: any, userId?: string) {

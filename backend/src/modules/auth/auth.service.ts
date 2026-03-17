@@ -6,6 +6,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { authenticator } from 'otplib';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 
@@ -29,6 +30,17 @@ export class AuthService {
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) {
       throw new UnauthorizedException('Credenciales incorrectas');
+    }
+
+    // 2FA check for SUPER_ADMIN
+    if (user.totpEnabled && user.totpSecret) {
+      if (!dto.totpCode) {
+        return { requiresTwoFactor: true };
+      }
+      const isValid = authenticator.verify({ token: dto.totpCode, secret: user.totpSecret });
+      if (!isValid) {
+        throw new UnauthorizedException('Código 2FA incorrecto');
+      }
     }
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
@@ -95,12 +107,66 @@ export class AuthService {
         email: true,
         role: true,
         isActive: true,
+        totpEnabled: true,
         createdAt: true,
       },
     });
 
     if (!user) throw new UnauthorizedException('Usuario no encontrado');
     return user;
+  }
+
+  // -------------------------------------------------------
+  // TOTP 2FA
+  // -------------------------------------------------------
+
+  async setup2fa(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Usuario no encontrado');
+
+    const secret = authenticator.generateSecret();
+    const appName = this.configService.get<string>('APP_NAME', 'Portalon');
+    const otpauthUrl = authenticator.keyuri(user.email, appName, secret);
+
+    // Store secret but don't enable yet — requires verification first
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { totpSecret: secret, totpEnabled: false },
+    });
+
+    return { secret, otpauthUrl };
+  }
+
+  async enable2fa(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.totpSecret) {
+      throw new BadRequestException('Primero ejecuta el setup de 2FA');
+    }
+    if (user.totpEnabled) {
+      throw new BadRequestException('2FA ya está activado');
+    }
+
+    const isValid = authenticator.verify({ token: code, secret: user.totpSecret });
+    if (!isValid) throw new BadRequestException('Código 2FA incorrecto');
+
+    await this.prisma.user.update({ where: { id: userId }, data: { totpEnabled: true } });
+    return { success: true, message: '2FA activado correctamente' };
+  }
+
+  async disable2fa(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.totpEnabled || !user.totpSecret) {
+      throw new BadRequestException('2FA no está activado');
+    }
+
+    const isValid = authenticator.verify({ token: code, secret: user.totpSecret });
+    if (!isValid) throw new BadRequestException('Código 2FA incorrecto');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { totpEnabled: false, totpSecret: null },
+    });
+    return { success: true, message: '2FA desactivado correctamente' };
   }
 
   private async generateTokens(userId: string, email: string, role: string) {

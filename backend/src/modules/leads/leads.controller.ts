@@ -16,6 +16,8 @@ import { LeadsService } from './leads.service';
 import { AiService } from '../ai/ai.service';
 import { CommissionsService } from '../commissions/commissions.service';
 import { PartnersService } from '../partners/partners.service';
+import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateLeadPublicDto } from './dto/create-lead-public.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
@@ -36,6 +38,8 @@ export class LeadsController {
     private readonly aiService: AiService,
     private readonly commissionsService: CommissionsService,
     private readonly partnersService: PartnersService,
+    private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   @Public()
@@ -44,7 +48,6 @@ export class LeadsController {
   @ApiOperation({ summary: 'Registrar lead desde formulario público' })
   async createPublic(@Body() dto: CreateLeadPublicDto) {
     const lead = await this.leadsService.createPublic(dto);
-    // Trigger AI scoring async (fire and forget)
     this.triggerAiScore(lead.id, lead).catch(() => {});
     return lead;
   }
@@ -68,6 +71,14 @@ export class LeadsController {
     }
 
     this.triggerAiScore(lead.id, lead).catch(() => {});
+    this.auditService.log({
+      actorUserId: user.role !== 'PARTNER' ? user.id : undefined,
+      actorPartnerId: user.role === 'PARTNER' ? user.id : undefined,
+      entityType: 'Lead',
+      entityId: lead.id,
+      action: 'create',
+      newValue: { status: lead.status, source: lead.sourceType },
+    }).catch(() => {});
     return lead;
   }
 
@@ -113,11 +124,48 @@ export class LeadsController {
     @Body() dto: ChangeLeadStatusDto,
     @CurrentUser('id') userId: string,
   ) {
+    const previousLead = await this.leadsService.findOne(id);
     const lead = await this.leadsService.changeStatus(id, dto, userId);
 
+    // Fire-and-forget: commission processing
     if (dto.status === 'RESERVED' || dto.status === 'WON') {
-      this.commissionsService.processLeadEvent(id, dto.status).catch(() => {});
+      this.commissionsService.processLeadEvent(id, dto.status).then(async () => {
+        // Notify partner after commission is created
+        if (lead.partner?.email) {
+          const leadName = `${lead.firstName} ${lead.lastName ?? ''}`.trim();
+          await this.notificationsService.notifyCommissionCreated({
+            partnerEmail: lead.partner.email,
+            partnerName: lead.partner.name,
+            leadName,
+            triggerType: dto.status === 'RESERVED' ? 'ON_RESERVATION' : 'ON_SALE',
+            amount: 0, // will be filled from commission event; skipping lookup for fire-and-forget
+          });
+        }
+      }).catch(() => {});
     }
+
+    // Notify partner of status change
+    if (lead.partner?.email) {
+      const leadName = `${lead.firstName} ${lead.lastName ?? ''}`.trim();
+      this.notificationsService.notifyLeadStatusChange({
+        partnerEmail: lead.partner.email,
+        partnerName: lead.partner.name,
+        leadName,
+        oldStatus: previousLead.status,
+        newStatus: dto.status,
+        leadId: id,
+      }).catch(() => {});
+    }
+
+    // Audit log
+    this.auditService.log({
+      actorUserId: userId,
+      entityType: 'Lead',
+      entityId: id,
+      action: 'status_change',
+      oldValue: { status: previousLead.status },
+      newValue: { status: dto.status, note: dto.note },
+    }).catch(() => {});
 
     return lead;
   }

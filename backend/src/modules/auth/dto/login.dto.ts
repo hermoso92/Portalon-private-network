@@ -1,5 +1,5 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString, Length, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
   @ApiProperty({ example: 'admin@portalon.com' })
@@ -10,4 +10,10 @@ export class LoginDto {
   @IsString()
   @MinLength(6)
   password: string;
+
+  @ApiPropertyOptional({ description: 'TOTP code (required only if 2FA is enabled)', example: '123456' })
+  @IsOptional()
+  @IsString()
+  @Length(6, 6)
+  totpCode?: string;
 }
