@@ -49,7 +49,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-not-for-production-32x}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-dev-refresh-secret-not-for-production-xx}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-dev-refresh-secret-not-for-production}
       OPENCLAW_BASE_URL: ${OPENCLAW_BASE_URL:-http://host.docker.internal:11434}
     volumes:
       # Hot-reload: mount source directly (requires ts-node or nodemon in dev target)
